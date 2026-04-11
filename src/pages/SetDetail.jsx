@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { Reorder } from 'framer-motion'
-import { ArrowLeft, Plus, Trash2, Save, Edit2, X, GripVertical as DragHandle } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Save, Edit2, X, GripVertical as DragHandle, Image as ImageIcon, Loader2 } from 'lucide-react'
 
 export default function SetDetail() {
   const { id } = useParams()
@@ -11,11 +11,14 @@ export default function SetDetail() {
   const [cards, setCards] = useState([])
   const [newWord, setNewWord] = useState('')
   const [newMeaning, setNewMeaning] = useState('')
+  const [imageFile, setImageFile] = useState(null)
+  const [uploading, setUploading] = useState(false)
   const [loading, setLoading] = useState(true)
 
   const [editingId, setEditingId] = useState(null)
   const [editWord, setEditWord] = useState('')
   const [editMeaning, setEditMeaning] = useState('')
+  const [editImageFile, setEditImageFile] = useState(null)
 
   useEffect(() => {
     fetchSetAndCards()
@@ -36,7 +39,7 @@ export default function SetDetail() {
         .from('cards')
         .select('*')
         .eq('set_id', id)
-        .order('display_order', { ascending: true }) // 순서대로 가져오기
+        .order('display_order', { ascending: true })
       
       if (cardsError) throw cardsError
       setCards(cardsData || [])
@@ -48,39 +51,67 @@ export default function SetDetail() {
     }
   }
 
+  // 공용 이미지 주소 생성 함수
+  const createPublicImageUrl = (filePath) => {
+    const baseUrl = import.meta.env.VITE_SUPABASE_URL.replace(/\/$/, '')
+    return `${baseUrl}/storage/v1/object/public/word-images/${filePath}`
+  }
+
   const handleAddCard = async (e) => {
     e.preventDefault()
     if (!newWord.trim() || !newMeaning.trim()) return
 
-    // 새 카드는 가장 마지막 순서로 추가
-    const nextOrder = cards.length > 0 ? Math.max(...cards.map(c => c.display_order)) + 1 : 0
+    setUploading(true)
+    let final_image_url = null
 
     try {
+      if (imageFile) {
+        const fileExt = imageFile.name.split('.').pop()
+        const fileName = `${Date.now()}-${Math.floor(Math.random() * 1000)}.${fileExt}`
+        const { error: uploadError } = await supabase.storage
+          .from('word-images')
+          .upload(fileName, imageFile)
+
+        if (uploadError) throw uploadError
+        final_image_url = createPublicImageUrl(fileName)
+      }
+
+      const nextOrder = cards.length > 0 ? Math.max(...cards.map(c => c.display_order)) + 1 : 0
       const { data, error } = await supabase
         .from('cards')
-        .insert([{ set_id: id, word: newWord, meaning: newMeaning, display_order: nextOrder }])
+        .insert([{ 
+          set_id: id, 
+          word: newWord, 
+          meaning: newMeaning, 
+          display_order: nextOrder,
+          image_url: final_image_url 
+        }])
         .select()
       
       if (error) throw error
       setCards([...cards, data[0]])
       setNewWord('')
       setNewMeaning('')
+      setImageFile(null)
+      const fileInput = document.getElementById('image-input')
+      if (fileInput) fileInput.value = ''
+      
     } catch (error) {
-      alert(error.message)
+      alert('저장 실패: ' + error.message)
+    } finally {
+      setUploading(false)
     }
   }
 
-  // 순서 변경 시 로컬 상태 업데이트 및 DB 반영
   const handleReorder = async (newOrder) => {
     setCards(newOrder)
-    
-    // DB에 새로운 순서 업데이트 (성능을 위해 실제 프로필에서는 디바운싱 등을 고려할 수 있음)
     const updates = newOrder.map((card, index) => ({
       id: card.id,
-      set_id: id, // 필수 컬럼 대응
+      set_id: id,
       word: card.word,
       meaning: card.meaning,
-      display_order: index
+      display_order: index,
+      image_url: card.image_url
     }))
 
     try {
@@ -95,38 +126,70 @@ export default function SetDetail() {
     setEditingId(card.id)
     setEditWord(card.word)
     setEditMeaning(card.meaning)
+    setEditImageFile(null)
   }
 
   const cancelEditing = () => {
     setEditingId(null)
     setEditWord('')
     setEditMeaning('')
+    setEditImageFile(null)
   }
 
-  const handleUpdateCard = async (cardId) => {
+  const handleUpdateCard = async (card) => {
     if (!editWord.trim() || !editMeaning.trim()) return
+    setUploading(true)
+
+    let final_image_url = card.image_url
 
     try {
+      // 새 이미지가 선택된 경우 업로드
+      if (editImageFile) {
+        const fileExt = editImageFile.name.split('.').pop()
+        const fileName = `${Date.now()}-${Math.floor(Math.random() * 1000)}.${fileExt}`
+        
+        const { error: uploadError } = await supabase.storage
+          .from('word-images')
+          .upload(fileName, editImageFile)
+
+        if (uploadError) throw uploadError
+        
+        // 이전 이미지 삭제 (선택 사항)
+        if (card.image_url) {
+          const oldFileName = card.image_url.split('/').pop()
+          await supabase.storage.from('word-images').remove([oldFileName])
+        }
+        
+        final_image_url = createPublicImageUrl(fileName)
+      }
+
       const { error } = await supabase
         .from('cards')
-        .update({ word: editWord, meaning: editMeaning })
-        .eq('id', cardId)
+        .update({ word: editWord, meaning: editMeaning, image_url: final_image_url })
+        .eq('id', card.id)
       
       if (error) throw error
       
-      setCards(cards.map(c => c.id === cardId ? { ...c, word: editWord, meaning: editMeaning } : c))
+      setCards(cards.map(c => c.id === card.id ? { ...c, word: editWord, meaning: editMeaning, image_url: final_image_url } : c))
       setEditingId(null)
     } catch (error) {
       alert(error.message)
+    } finally {
+      setUploading(false)
     }
   }
 
-  const handleDeleteCard = async (cardId) => {
+  const handleDeleteCard = async (card) => {
     if (!confirm('정말 삭제하시겠습니까?')) return
     try {
-      const { error } = await supabase.from('cards').delete().eq('id', cardId)
+      if (card.image_url) {
+        const fileName = card.image_url.split('/').pop()
+        await supabase.storage.from('word-images').remove([fileName])
+      }
+
+      const { error } = await supabase.from('cards').delete().eq('id', card.id)
       if (error) throw error
-      setCards(cards.filter(c => c.id !== cardId))
+      setCards(cards.filter(c => c.id !== card.id))
     } catch (error) {
       alert(error.message)
     }
@@ -153,8 +216,8 @@ export default function SetDetail() {
               <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>단어 (앞면)</label>
               <textarea
                 className="card"
-                style={{ height: '120px', padding: '1rem', background: 'var(--bg-color)', color: 'white', border: '1px solid var(--glass-border)', resize: 'vertical' }}
-                placeholder="암기할 단어나 문장을 입력하세요"
+                style={{ height: '100px', padding: '1rem', background: 'var(--bg-color)', color: 'white', border: '1px solid var(--glass-border)', resize: 'vertical' }}
+                placeholder="단어나 문장"
                 value={newWord}
                 onChange={(e) => setNewWord(e.target.value)}
               />
@@ -163,63 +226,74 @@ export default function SetDetail() {
               <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>뜻 (뒷면)</label>
               <textarea
                 className="card"
-                style={{ height: '120px', padding: '1rem', background: 'var(--bg-color)', color: 'white', border: '1px solid var(--glass-border)', resize: 'vertical' }}
-                placeholder="의미나 설명을 입력하세요"
+                style={{ height: '100px', padding: '1rem', background: 'var(--bg-color)', color: 'white', border: '1px solid var(--glass-border)', resize: 'vertical' }}
+                placeholder="의미나 설명"
                 value={newMeaning}
                 onChange={(e) => setNewMeaning(e.target.value)}
               />
             </div>
           </div>
-          <button type="submit" className="btn-primary" style={{ alignSelf: 'flex-end', padding: '0.8rem 2.5rem' }}>
-            세트에 추가하기
-          </button>
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <label htmlFor="image-input" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--glass)', padding: '0.5rem 1rem', borderRadius: '12px', border: '1px solid var(--glass-border)', fontSize: '0.9rem' }}>
+                <ImageIcon size={18} /> {imageFile ? imageFile.name : '이미지 첨부'}
+              </label>
+              <input id="image-input" type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => setImageFile(e.target.files[0])} />
+              {imageFile && <button type="button" onClick={() => setImageFile(null)} style={{ background: 'none', color: 'var(--danger)', fontSize: '0.8rem' }}>취소</button>}
+            </div>
+            <button type="submit" className="btn-primary" disabled={uploading} style={{ padding: '0.8rem 2.5rem' }}>
+              {uploading ? <Loader2 className="animate-spin" /> : '세트에 추가하기'}
+            </button>
+          </div>
         </form>
       </section>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         <h3 style={{ marginBottom: '1rem' }}>단어 목록 ({cards.length})</h3>
-        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>💡 각 단어를 드래그하여 순서를 바꿀 수 있습니다.</p>
-        
         <Reorder.Group axis="y" values={cards} onReorder={handleReorder} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', listStyle: 'none', padding: 0 }}>
           {cards.map((card) => (
-            <Reorder.Item key={card.id} value={card} style={{ cursor: 'grab' }}>
-              <div className="card" style={{ padding: '1.2rem', transition: 'box-shadow 0.2s', background: editingId === card.id ? 'var(--card-bg)' : 'rgba(255,255,255,0.03)' }}>
+            <Reorder.Item key={card.id} value={card}>
+              <div className="card" style={{ padding: '1.2rem', background: editingId === card.id ? 'var(--card-bg)' : 'rgba(255,255,255,0.03)' }}>
                 {editingId === card.id ? (
+                  /* 수정 모드 */
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                      <textarea
-                        className="card"
-                        style={{ padding: '0.8rem', background: 'var(--bg-color)', color: 'white', minHeight: '80px' }}
-                        value={editWord}
-                        onChange={(e) => setEditWord(e.target.value)}
-                      />
-                      <textarea
-                        className="card"
-                        style={{ padding: '0.8rem', background: 'var(--bg-color)', color: 'white', minHeight: '80px' }}
-                        value={editMeaning}
-                        onChange={(e) => setEditMeaning(e.target.value)}
-                      />
+                      <textarea className="card" style={{ padding: '0.8rem', background: 'var(--bg-color)', color: 'white', minHeight: '80px' }} value={editWord} onChange={(e) => setEditWord(e.target.value)} />
+                      <textarea className="card" style={{ padding: '0.8rem', background: 'var(--bg-color)', color: 'white', minHeight: '80px' }} value={editMeaning} onChange={(e) => setEditMeaning(e.target.value)} />
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                      <button onClick={cancelEditing} style={{ background: 'var(--glass)', color: 'white', padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                        <X size={16} /> 취소
-                      </button>
-                      <button onClick={() => handleUpdateCard(card.id)} className="btn-primary" style={{ padding: '0.5rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                        <Save size={16} /> 저장
-                      </button>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <label htmlFor={`edit-image-${card.id}`} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--glass)', padding: '0.4rem 0.8rem', borderRadius: '8px', fontSize: '0.85rem' }}>
+                          <ImageIcon size={16} /> {editImageFile ? editImageFile.name : '이미지 교체'}
+                        </label>
+                        <input id={`edit-image-${card.id}`} type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => setEditImageFile(e.target.files[0])} />
+                        {card.image_url && !editImageFile && <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>기존 이미지 있음</span>}
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button onClick={cancelEditing} style={{ background: 'var(--glass)', color: 'white', padding: '0.5rem 1rem' }}>취소</button>
+                        <button onClick={() => handleUpdateCard(card)} className="btn-primary" disabled={uploading}>
+                          {uploading ? <Loader2 className="animate-spin" /> : '저장'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(150px, 1fr) 2fr auto', alignItems: 'center', gap: '1.5rem' }}>
+                  /* 일반 모드 */
+                  <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 2fr auto', alignItems: 'center', gap: '1.5rem' }}>
+                    <div style={{ cursor: 'grab', color: 'var(--text-secondary)' }}><DragHandle size={20} /></div>
                     <div style={{ fontWeight: '700', fontSize: '1.1rem', whiteSpace: 'pre-wrap' }}>{card.word}</div>
-                    <div style={{ color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>{card.meaning}</div>
+                    <div style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <span style={{ whiteSpace: 'pre-wrap' }}>{card.meaning}</span>
+                      {card.image_url && (
+                        <div style={{ width: '40px', height: '40px', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--glass-border)' }}>
+                          <img src={card.image_url} alt="card" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        </div>
+                      )}
+                    </div>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button onClick={() => startEditing(card)} style={{ background: 'var(--glass)', color: 'var(--text-secondary)', padding: '0.5rem' }}>
-                        <Edit2 size={18} />
-                      </button>
-                      <button onClick={() => handleDeleteCard(card.id)} style={{ background: 'none', color: 'var(--danger)', padding: '0.5rem' }}>
-                        <Trash2 size={18} />
-                      </button>
+                      <button onClick={() => startEditing(card)} style={{ background: 'var(--glass)', color: 'var(--text-secondary)', padding: '0.5rem' }}><Edit2 size={18} /></button>
+                      <button onClick={() => handleDeleteCard(card)} style={{ background: 'none', color: 'var(--danger)', padding: '0.5rem' }}><Trash2 size={18} /></button>
                     </div>
                   </div>
                 )}
@@ -227,12 +301,6 @@ export default function SetDetail() {
             </Reorder.Item>
           ))}
         </Reorder.Group>
-
-        {cards.length === 0 && (
-          <p style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '4rem', background: 'var(--glass)', borderRadius: '16px' }}>
-            등록된 단어가 없습니다. 위 양식을 통해 첫 단어를 추가해 보세요!
-          </p>
-        )}
       </div>
     </div>
   )

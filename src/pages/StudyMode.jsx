@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, RefreshCw, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react'
 
 export default function StudyMode() {
   const { id } = useParams()
@@ -10,6 +10,7 @@ export default function StudyMode() {
   const [cards, setCards] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isFlipped, setIsFlipped] = useState(false)
+  const [showHint, setShowHint] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -22,7 +23,7 @@ export default function StudyMode() {
         .from('cards')
         .select('*')
         .eq('set_id', id)
-        .order('created_at', { ascending: true })
+        .order('display_order', { ascending: true })
       
       if (error) throw error
       setCards(data || [])
@@ -36,6 +37,7 @@ export default function StudyMode() {
 
   const handleNext = () => {
     setIsFlipped(false)
+    setShowHint(false) // 힌트 초기화
     setTimeout(() => {
       setCurrentIndex((prev) => (prev + 1) % cards.length)
     }, 150)
@@ -43,6 +45,7 @@ export default function StudyMode() {
 
   const handlePrev = () => {
     setIsFlipped(false)
+    setShowHint(false) // 힌트 초기화
     setTimeout(() => {
       setCurrentIndex((prev) => (prev - 1 + cards.length) % cards.length)
     }, 150)
@@ -62,11 +65,11 @@ export default function StudyMode() {
     }
   }
 
-  if (loading) return <div className="container">로딩 중...</div>
+  if (loading) return <div className="container" style={{ textAlign: 'center', padding: '5rem' }}>로딩 중...</div>
   if (cards.length === 0) return (
     <div className="container" style={{ textAlign: 'center', padding: '5rem' }}>
       <h2>학습할 단어가 없습니다.</h2>
-      <Link to={`/set/${id}/manage`} style={{ color: 'var(--accent-color)' }}>단어 추가하러 가기</Link>
+      <Link to={`/set/${id}/manage`} style={{ color: 'var(--accent-color)', textDecoration: 'none' }}>단어 추가하러 가기</Link>
     </div>
   )
 
@@ -78,15 +81,15 @@ export default function StudyMode() {
         <Link to="/" style={{ color: 'var(--text-secondary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <ArrowLeft size={18} /> 그만하기
         </Link>
-        <div style={{ color: 'var(--text-secondary)', fontWeight: '600' }}>
+        <div style={{ color: 'var(--text-secondary)', fontWeight: '600', background: 'var(--glass)', padding: '0.3rem 0.8rem', borderRadius: '20px', fontSize: '0.9rem' }}>
           {currentIndex + 1} / {cards.length}
         </div>
-        <Link to={`/set/${id}/test`} style={{ color: 'var(--accent-color)', fontWeight: '700', textDecoration: 'none' }}>
+        <Link to={`/set/${id}/test`} style={{ color: 'var(--accent-color)', fontWeight: '700', textDecoration: 'none', fontSize: '0.9rem' }}>
           테스트 모드 전환
         </Link>
       </header>
 
-      <div style={{ height: '400px', perspective: '1000px', cursor: 'pointer' }} onClick={() => setIsFlipped(!isFlipped)}>
+      <div style={{ height: '400px', perspective: '1200px', cursor: 'pointer' }} onClick={() => setIsFlipped(!isFlipped)}>
         <motion.div
           animate={{ rotateY: isFlipped ? 180 : 0 }}
           transition={{ duration: 0.6, type: 'spring', stiffness: 260, damping: 20 }}
@@ -95,8 +98,9 @@ export default function StudyMode() {
           {/* Front */}
           <div className="card" style={{ 
             position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden',
-            display: 'flex', justifyContent: 'center', alignItems: 'center', textAlign: 'center',
-            fontSize: '3rem', fontWeight: '800', border: '2px solid var(--glass-border)'
+            display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center',
+            fontSize: currentCard.word.length > 20 ? '1.8rem' : '2.8rem', fontWeight: '800', 
+            border: '2px solid var(--glass-border)', padding: '2rem', whiteSpace: 'pre-wrap'
           }}>
             {currentCard.word}
           </div>
@@ -104,13 +108,50 @@ export default function StudyMode() {
           {/* Back */}
           <div className="card" style={{ 
             position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden',
-            display: 'flex', justifyContent: 'center', alignItems: 'center', textAlign: 'center',
-            fontSize: '2.5rem', fontWeight: '600', color: 'var(--accent-color)',
-            transform: 'rotateY(180deg)', border: '2px solid var(--accent-color)'
+            display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center',
+            fontSize: currentCard.meaning.length > 30 ? '1.5rem' : '2.2rem', fontWeight: '600', color: 'var(--accent-color)',
+            transform: 'rotateY(180deg)', border: '2px solid var(--accent-color)', padding: '2rem', whiteSpace: 'pre-wrap'
           }}>
             {currentCard.meaning}
           </div>
         </motion.div>
+      </div>
+
+      {/* 이미지 힌트 제어 영역 */}
+      <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+        {currentCard.image_url && (
+          <>
+            <button 
+              onClick={() => setShowHint(!showHint)}
+              style={{ 
+                background: 'var(--glass)', color: 'var(--text-secondary)', border: '1px solid var(--glass-border)',
+                padding: '0.5rem 1.2rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '0.5rem',
+                fontSize: '0.9rem', cursor: 'pointer', transition: 'all 0.2s'
+              }}
+            >
+              {showHint ? <><EyeOff size={16} /> 이미지 숨기기</> : <><Eye size={16} /> 첨부 이미지 확인</>}
+            </button>
+            
+            <AnimatePresence>
+              {showHint && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  style={{ width: '100%', overflow: 'hidden', display: 'flex', justifyContent: 'center' }}
+                >
+                  <div style={{ width: '100%', maxWidth: '400px', padding: '1rem', borderRadius: '16px', background: 'var(--glass)', border: '1px solid var(--glass-border)', marginTop: '0.5rem' }}>
+                    <img 
+                      src={currentCard.image_url} 
+                      alt="hint" 
+                      style={{ width: '100%', borderRadius: '8px', objectFit: 'contain', maxHeight: '300px' }} 
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </>
+        )}
       </div>
 
       <div style={{ marginTop: '2.5rem', display: 'flex', flexDirection: 'column', gap: '2rem', alignItems: 'center' }}>
@@ -120,15 +161,15 @@ export default function StudyMode() {
             display: 'flex', alignItems: 'center', gap: '0.5rem',
             background: currentCard.is_memorized ? 'var(--success)' : 'var(--glass)',
             color: 'white', border: currentCard.is_memorized ? 'none' : '1px solid var(--glass-border)',
-            padding: '0.8rem 2rem', borderRadius: '50px'
+            padding: '0.7rem 2rem', borderRadius: '50px', fontWeight: '600'
           }}
         >
-          <CheckCircle2 size={20} /> {currentCard.is_memorized ? '외웠음!' : '아직 다 안 외웠어'}
+          <CheckCircle2 size={20} /> {currentCard.is_memorized ? '암기 완료!' : '아직 외우는 중'}
         </button>
 
         <div style={{ display: 'flex', gap: '1.5rem', width: '100%', justifyContent: 'center' }}>
-          <button className="card" onClick={handlePrev} style={{ padding: '1rem 2rem' }}><ChevronLeft /></button>
-          <button className="card" onClick={handleNext} style={{ padding: '1rem 2rem' }}><ChevronRight /></button>
+          <button className="card btn-hover" onClick={(e) => { e.stopPropagation(); handlePrev(); }} style={{ padding: '0.8rem 2.5rem' }}><ChevronLeft size={24} /></button>
+          <button className="card btn-hover" onClick={(e) => { e.stopPropagation(); handleNext(); }} style={{ padding: '0.8rem 2.5rem' }}><ChevronRight size={24} /></button>
         </div>
       </div>
     </div>
