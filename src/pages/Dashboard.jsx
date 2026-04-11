@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { Plus, Trash2, Play, Edit2, Clock, Layers, Loader2, ClipboardList } from 'lucide-react'
+import { Plus, Trash2, Play, Edit2, Clock, Layers, Loader2, ClipboardList, BookOpen } from 'lucide-react'
 
 export default function Dashboard() {
   const [sets, setSets] = useState([])
@@ -130,26 +130,40 @@ export default function Dashboard() {
             gap: '1.2rem'
           }}>
             {/* [정보 + 관리] 상단 바 */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.3rem' }}>
-                  <h3 style={{ fontSize: '1.3rem', fontWeight: '800', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{set.title}</h3>
-                  <span style={{ flexShrink: 0, fontSize: '0.7rem', color: 'var(--accent-color)', fontWeight: '800', background: 'rgba(99,102,241,0.1)', padding: '0.2rem 0.6rem', borderRadius: '50px' }}>
-                    {set.cards?.[0]?.count || 0}
-                  </span>
+            <div style={{ width: '100%' }}>
+              {/* 첫 번째 줄: 제목 */}
+              <h3 style={{ fontSize: '1.4rem', fontWeight: '800', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: '0.8rem' }}>
+                {set.title}
+              </h3>
+              
+              {/* 두 번째 줄: 단어 수 및 관리 버튼 */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.85rem', fontWeight: '600' }}>
+                  <BookOpen size={14} color="var(--accent-color)" />
+                  <span>{set.cards?.[0]?.count || 0} 단어</span>
+                  <span style={{ margin: '0 0.3rem', opacity: 0.3 }}>|</span>
+                  <Clock size={14} style={{ opacity: 0.6 }} />
+                  <span style={{ opacity: 0.6 }}>{new Date(set.created_at).toLocaleDateString()}</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-                   <Clock size={12} /> {new Date(set.created_at).toLocaleDateString()}
+                
+                <div style={{ display: 'flex', gap: '0.3rem' }}>
+                  <button 
+                    onClick={() => navigate(`/set/${set.id}/manage`)}
+                    className="btn-hover-icon"
+                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', color: 'var(--text-secondary)', padding: '0.5rem', borderRadius: '8px', cursor: 'pointer' }}
+                    title="관리"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteSet(set.id)}
+                    className="btn-hover-danger"
+                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', color: 'var(--text-secondary)', padding: '0.5rem', borderRadius: '8px', cursor: 'pointer' }}
+                    title="삭제"
+                  >
+                    <Trash2 size={16} />
+                  </button>
                 </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '0.4rem', background: 'rgba(255,255,255,0.03)', padding: '0.3rem', borderRadius: '10px' }}>
-                <Link to={`/set/${set.id}/manage`} style={{ color: 'var(--text-secondary)', padding: '0.4rem' }} className="btn-hover-icon" title="편집">
-                  <Edit2 size={18} />
-                </Link>
-                <button onClick={() => handleDeleteSet(set.id)} style={{ background: 'none', color: 'rgba(244, 63, 94, 0.45)', padding: '0.4rem' }} className="btn-hover-danger" title="삭제">
-                  <Trash2 size={18} />
-                </button>
               </div>
             </div>
 
@@ -188,8 +202,9 @@ export default function Dashboard() {
       <style>{`
         .sets-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+          grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr));
           gap: 1.5rem;
+          width: 100%;
         }
         @media (max-width: 850px) {
           .sets-grid { grid-template-columns: 1fr; }
