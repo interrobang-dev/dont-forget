@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { useNavigate } from 'react-router-dom'
 import { Plus, Book, Trash2, ChevronRight, LogOut } from 'lucide-react'
 
 export default function Dashboard({ session }) {
   const [sets, setSets] = useState([])
   const [newSetName, setNewSetName] = useState('')
   const [loading, setLoading] = useState(true)
+  const navigate = useNavigate()
 
   useEffect(() => {
     fetchSets()
@@ -117,13 +119,13 @@ export default function Dashboard({ session }) {
                 <button 
                   className="btn-primary" 
                   style={{ flex: 1, fontSize: '0.9rem', padding: '0.6rem' }}
-                  onClick={() => window.location.href = `/set/${set.id}`}
+                  onClick={() => navigate(`/set/${set.id}`)}
                 >
                   학습 시작
                 </button>
                 <button 
                   style={{ background: 'var(--glass)', border: '1px solid var(--glass-border)', color: 'white', padding: '0.6rem' }}
-                  onClick={() => window.location.href = `/set/${set.id}/manage`}
+                  onClick={() => navigate(`/set/${set.id}/manage`)}
                 >
                   관리
                 </button>
