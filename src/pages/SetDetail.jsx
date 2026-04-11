@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { ArrowLeft, Plus, Trash2, Save, Edit2, X } from 'lucide-react'
+import { Reorder } from 'framer-motion'
+import { ArrowLeft, Plus, Trash2, Save, Edit2, X, GripVertical as DragHandle } from 'lucide-react'
 
 export default function SetDetail() {
   const { id } = useParams()
@@ -12,7 +13,6 @@ export default function SetDetail() {
   const [newMeaning, setNewMeaning] = useState('')
   const [loading, setLoading] = useState(true)
 
-  // 수정 관련 상태
   const [editingId, setEditingId] = useState(null)
   const [editWord, setEditWord] = useState('')
   const [editMeaning, setEditMeaning] = useState('')
@@ -36,7 +36,7 @@ export default function SetDetail() {
         .from('cards')
         .select('*')
         .eq('set_id', id)
-        .order('created_at', { ascending: true })
+        .order('display_order', { ascending: true }) // 순서대로 가져오기
       
       if (cardsError) throw cardsError
       setCards(cardsData || [])
@@ -52,10 +52,13 @@ export default function SetDetail() {
     e.preventDefault()
     if (!newWord.trim() || !newMeaning.trim()) return
 
+    // 새 카드는 가장 마지막 순서로 추가
+    const nextOrder = cards.length > 0 ? Math.max(...cards.map(c => c.display_order)) + 1 : 0
+
     try {
       const { data, error } = await supabase
         .from('cards')
-        .insert([{ set_id: id, word: newWord, meaning: newMeaning }])
+        .insert([{ set_id: id, word: newWord, meaning: newMeaning, display_order: nextOrder }])
         .select()
       
       if (error) throw error
@@ -64,6 +67,27 @@ export default function SetDetail() {
       setNewMeaning('')
     } catch (error) {
       alert(error.message)
+    }
+  }
+
+  // 순서 변경 시 로컬 상태 업데이트 및 DB 반영
+  const handleReorder = async (newOrder) => {
+    setCards(newOrder)
+    
+    // DB에 새로운 순서 업데이트 (성능을 위해 실제 프로필에서는 디바운싱 등을 고려할 수 있음)
+    const updates = newOrder.map((card, index) => ({
+      id: card.id,
+      set_id: id, // 필수 컬럼 대응
+      word: card.word,
+      meaning: card.meaning,
+      display_order: index
+    }))
+
+    try {
+      const { error } = await supabase.from('cards').upsert(updates)
+      if (error) throw error
+    } catch (error) {
+      console.error('순서 저장 실패:', error.message)
     }
   }
 
@@ -154,51 +178,56 @@ export default function SetDetail() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         <h3 style={{ marginBottom: '1rem' }}>단어 목록 ({cards.length})</h3>
-        {cards.map((card) => (
-          <div key={card.id} className="card" style={{ padding: '1.2rem', transition: 'all 0.2s' }}>
-            {editingId === card.id ? (
-              /* 수정 모드 */
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                  <textarea
-                    className="card"
-                    style={{ padding: '0.8rem', background: 'var(--bg-color)', color: 'white', minHeight: '80px' }}
-                    value={editWord}
-                    onChange={(e) => setEditWord(e.target.value)}
-                  />
-                  <textarea
-                    className="card"
-                    style={{ padding: '0.8rem', background: 'var(--bg-color)', color: 'white', minHeight: '80px' }}
-                    value={editMeaning}
-                    onChange={(e) => setEditMeaning(e.target.value)}
-                  />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                  <button onClick={cancelEditing} style={{ background: 'var(--glass)', color: 'white', padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                    <X size={16} /> 취소
-                  </button>
-                  <button onClick={() => handleUpdateCard(card.id)} className="btn-primary" style={{ padding: '0.5rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                    <Save size={16} /> 저장
-                  </button>
-                </div>
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>💡 각 단어를 드래그하여 순서를 바꿀 수 있습니다.</p>
+        
+        <Reorder.Group axis="y" values={cards} onReorder={handleReorder} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', listStyle: 'none', padding: 0 }}>
+          {cards.map((card) => (
+            <Reorder.Item key={card.id} value={card} style={{ cursor: 'grab' }}>
+              <div className="card" style={{ padding: '1.2rem', transition: 'box-shadow 0.2s', background: editingId === card.id ? 'var(--card-bg)' : 'rgba(255,255,255,0.03)' }}>
+                {editingId === card.id ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                      <textarea
+                        className="card"
+                        style={{ padding: '0.8rem', background: 'var(--bg-color)', color: 'white', minHeight: '80px' }}
+                        value={editWord}
+                        onChange={(e) => setEditWord(e.target.value)}
+                      />
+                      <textarea
+                        className="card"
+                        style={{ padding: '0.8rem', background: 'var(--bg-color)', color: 'white', minHeight: '80px' }}
+                        value={editMeaning}
+                        onChange={(e) => setEditMeaning(e.target.value)}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                      <button onClick={cancelEditing} style={{ background: 'var(--glass)', color: 'white', padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                        <X size={16} /> 취소
+                      </button>
+                      <button onClick={() => handleUpdateCard(card.id)} className="btn-primary" style={{ padding: '0.5rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                        <Save size={16} /> 저장
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(150px, 1fr) 2fr auto', alignItems: 'center', gap: '1.5rem' }}>
+                    <div style={{ fontWeight: '700', fontSize: '1.1rem', whiteSpace: 'pre-wrap' }}>{card.word}</div>
+                    <div style={{ color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>{card.meaning}</div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button onClick={() => startEditing(card)} style={{ background: 'var(--glass)', color: 'var(--text-secondary)', padding: '0.5rem' }}>
+                        <Edit2 size={18} />
+                      </button>
+                      <button onClick={() => handleDeleteCard(card.id)} style={{ background: 'none', color: 'var(--danger)', padding: '0.5rem' }}>
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
-            ) : (
-              /* 일반 모드 */
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(150px, 1fr) 2fr auto', alignItems: 'flex-start', gap: '1.5rem' }}>
-                <div style={{ fontWeight: '700', fontSize: '1.1rem', whiteSpace: 'pre-wrap' }}>{card.word}</div>
-                <div style={{ color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>{card.meaning}</div>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button onClick={() => startEditing(card)} style={{ background: 'var(--glass)', color: 'var(--text-secondary)', padding: '0.5rem' }}>
-                    <Edit2 size={18} />
-                  </button>
-                  <button onClick={() => handleDeleteCard(card.id)} style={{ background: 'none', color: 'var(--danger)', padding: '0.5rem' }}>
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
+            </Reorder.Item>
+          ))}
+        </Reorder.Group>
+
         {cards.length === 0 && (
           <p style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '4rem', background: 'var(--glass)', borderRadius: '16px' }}>
             등록된 단어가 없습니다. 위 양식을 통해 첫 단어를 추가해 보세요!
