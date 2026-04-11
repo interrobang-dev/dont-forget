@@ -135,7 +135,7 @@ export default function Dashboard() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.3rem' }}>
                   <h3 style={{ fontSize: '1.3rem', fontWeight: '800', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{set.title}</h3>
                   <span style={{ flexShrink: 0, fontSize: '0.7rem', color: 'var(--accent-color)', fontWeight: '800', background: 'rgba(99,102,241,0.1)', padding: '0.2rem 0.6rem', borderRadius: '50px' }}>
-                    {set.cards[0]?.count || 0}
+                    {set.cards?.[0]?.count || 0}
                   </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
