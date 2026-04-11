@@ -114,17 +114,17 @@ export default function TestMode() {
           <div className="card" style={{ 
             position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden',
             display: 'flex', justifyContent: 'center', alignItems: 'center', textAlign: 'center',
-            fontSize: currentCard.word.length > 20 ? '1.8rem' : '2.8rem', fontWeight: '800', border: '2px solid var(--glass-border)'
+            fontSize: currentCard.word.length > 20 ? '1.8rem' : '2.8rem', fontWeight: '800', border: '2px solid var(--glass-border)', padding: '2rem'
           }}>
-            {currentCard.word}
+            <div className="legible-word">{currentCard.word}</div>
           </div>
           <div className="card" style={{ 
             position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden',
             display: 'flex', justifyContent: 'center', alignItems: 'center', textAlign: 'center',
             fontSize: currentCard.meaning.length > 30 ? '1.5rem' : '2.2rem', fontWeight: '600', color: 'var(--accent-color)',
-            transform: 'rotateY(180deg)', border: '2px solid var(--accent-color)'
+            transform: 'rotateY(180deg)', border: '2px solid var(--accent-color)', padding: '2rem'
           }}>
-            {currentCard.meaning}
+            <div className="legible-word">{currentCard.meaning}</div>
           </div>
         </motion.div>
       </div>

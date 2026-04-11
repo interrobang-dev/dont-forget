@@ -48,8 +48,12 @@ function App() {
             element={!session ? <Auth /> : <Navigate to="/" />} 
           />
           <Route 
-            path="/set/:id" 
+            path="/set/:id/study" 
             element={session ? <StudyMode /> : <Navigate to="/login" />} 
+          />
+          <Route 
+            path="/set/:id" 
+            element={<Navigate to="study" replace />} 
           />
           <Route 
             path="/set/:id/manage" 
