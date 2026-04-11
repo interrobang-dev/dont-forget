@@ -94,6 +94,8 @@ h1, h2, h3 {
   text-shadow: var(--text-glow);
   line-height: 1.3;
   letter-spacing: -0.01em;
+  white-space: pre-wrap; /* 줄바꿈 반영 */
+  word-break: break-word; /* 긴 단어 끊기 */
 }
 
 /* Animations */

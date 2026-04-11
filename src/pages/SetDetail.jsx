@@ -1,24 +1,24 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { Reorder } from 'framer-motion'
-import { ArrowLeft, Plus, Trash2, Save, Edit2, X, GripVertical as DragHandle, Image as ImageIcon, Loader2 } from 'lucide-react'
+import { motion, Reorder, AnimatePresence } from 'framer-motion'
+import { 
+  ArrowLeft, Plus, Trash2, Save, GripVertical, 
+  Image as ImageIcon, X, Loader2, BookOpen, Clock, Edit2 
+} from 'lucide-react'
 
 export default function SetDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+  
   const [set, setSet] = useState(null)
   const [cards, setCards] = useState([])
-  const [newWord, setNewWord] = useState('')
-  const [newMeaning, setNewMeaning] = useState('')
-  const [imageFile, setImageFile] = useState(null)
-  const [uploading, setUploading] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [actionLoading, setActionLoading] = useState(false)
+  const [zoomedImage, setZoomedImage] = useState(null)
 
-  const [editingId, setEditingId] = useState(null)
-  const [editWord, setEditWord] = useState('')
-  const [editMeaning, setEditMeaning] = useState('')
-  const [editImageFile, setEditImageFile] = useState(null)
+  const [newCard, setNewCard] = useState({ word: '', meaning: '', image: null, preview: null })
+  const [editingCard, setEditingCard] = useState(null)
 
   useEffect(() => {
     fetchSetAndCards()
@@ -27,20 +27,12 @@ export default function SetDetail() {
   const fetchSetAndCards = async () => {
     try {
       const { data: setData, error: setError } = await supabase
-        .from('word_sets')
-        .select('*')
-        .eq('id', id)
-        .single()
-      
+        .from('word_sets').select('*').eq('id', id).single()
       if (setError) throw setError
       setSet(setData)
 
       const { data: cardsData, error: cardsError } = await supabase
-        .from('cards')
-        .select('*')
-        .eq('set_id', id)
-        .order('display_order', { ascending: true })
-      
+        .from('cards').select('*').eq('set_id', id).order('display_order', { ascending: true })
       if (cardsError) throw cardsError
       setCards(cardsData || [])
     } catch (error) {
@@ -51,257 +43,241 @@ export default function SetDetail() {
     }
   }
 
-  // 공용 이미지 주소 생성 함수
-  const createPublicImageUrl = (filePath) => {
-    const baseUrl = import.meta.env.VITE_SUPABASE_URL.replace(/\/$/, '')
-    return `${baseUrl}/storage/v1/object/public/word-images/${filePath}`
+  const handleImageChange = (e, isEdit = false) => {
+    const file = e.target.files[0]
+    if (file) {
+      const previewUrl = URL.createObjectURL(file)
+      if (isEdit) {
+        setEditingCard({ ...editingCard, image: file, preview: previewUrl })
+      } else {
+        setNewCard({ ...newCard, image: file, preview: previewUrl })
+      }
+    }
+  }
+
+  const uploadImage = async (file) => {
+    const fileExt = file.name.split('.').pop()
+    const fileName = `${Math.random()}.${fileExt}`
+    const filePath = `${fileName}`
+    const { error: uploadError } = await supabase.storage.from('word-images').upload(filePath, file)
+    if (uploadError) throw uploadError
+    return `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/word-images/${filePath}`
   }
 
   const handleAddCard = async (e) => {
     e.preventDefault()
-    if (!newWord.trim() || !newMeaning.trim()) return
-
-    setUploading(true)
-    let final_image_url = null
-
+    if (!newCard.word.trim() || !newCard.meaning.trim()) return
+    setActionLoading(true)
     try {
-      if (imageFile) {
-        const fileExt = imageFile.name.split('.').pop()
-        const fileName = `${Date.now()}-${Math.floor(Math.random() * 1000)}.${fileExt}`
-        const { error: uploadError } = await supabase.storage
-          .from('word-images')
-          .upload(fileName, imageFile)
-
-        if (uploadError) throw uploadError
-        final_image_url = createPublicImageUrl(fileName)
-      }
-
-      const nextOrder = cards.length > 0 ? Math.max(...cards.map(c => c.display_order)) + 1 : 0
-      const { data, error } = await supabase
-        .from('cards')
-        .insert([{ 
-          set_id: id, 
-          word: newWord, 
-          meaning: newMeaning, 
-          display_order: nextOrder,
-          image_url: final_image_url 
-        }])
-        .select()
-      
+      let image_url = null
+      if (newCard.image) image_url = await uploadImage(newCard.image)
+      const { data, error } = await supabase.from('cards').insert([{
+        set_id: id, word: newCard.word, meaning: newCard.meaning, image_url, display_order: cards.length
+      }]).select()
       if (error) throw error
       setCards([...cards, data[0]])
-      setNewWord('')
-      setNewMeaning('')
-      setImageFile(null)
-      const fileInput = document.getElementById('image-input')
-      if (fileInput) fileInput.value = ''
-      
+      setNewCard({ word: '', meaning: '', image: null, preview: null })
     } catch (error) {
-      alert('저장 실패: ' + error.message)
+      alert(error.message)
     } finally {
-      setUploading(false)
+      setActionLoading(false)
+    }
+  }
+
+  const handleDeleteCard = async (cardId, imageUrl) => {
+    if (!confirm('단어를 삭제하시겠습니까?')) return
+    try {
+      const { error } = await supabase.from('cards').delete().eq('id', cardId)
+      if (error) throw error
+      if (imageUrl) {
+        const fileName = imageUrl.split('/').pop()
+        await supabase.storage.from('word-images').remove([fileName])
+      }
+      setCards(cards.filter(c => c.id !== cardId))
+    } catch (error) {
+      alert(error.message)
+    }
+  }
+
+  const handleUpdateCard = async (e) => {
+    e.preventDefault()
+    setActionLoading(true)
+    try {
+      let image_url = editingCard.image_url
+      if (editingCard.image) image_url = await uploadImage(editingCard.image)
+      const { error } = await supabase.from('cards').update({
+        word: editingCard.word, meaning: editingCard.meaning, image_url
+      }).eq('id', editingCard.id)
+      if (error) throw error
+      setCards(cards.map(c => c.id === editingCard.id ? { ...editingCard, image_url } : c))
+      setEditingCard(null)
+    } catch (error) {
+      alert(error.message)
+    } finally {
+      setActionLoading(false)
     }
   }
 
   const handleReorder = async (newOrder) => {
     setCards(newOrder)
-    const updates = newOrder.map((card, index) => ({
-      id: card.id,
-      set_id: id,
-      word: card.word,
-      meaning: card.meaning,
-      display_order: index,
-      image_url: card.image_url
-    }))
-
-    try {
-      const { error } = await supabase.from('cards').upsert(updates)
-      if (error) throw error
-    } catch (error) {
-      console.error('순서 저장 실패:', error.message)
-    }
-  }
-
-  const startEditing = (card) => {
-    setEditingId(card.id)
-    setEditWord(card.word)
-    setEditMeaning(card.meaning)
-    setEditImageFile(null)
-  }
-
-  const cancelEditing = () => {
-    setEditingId(null)
-    setEditWord('')
-    setEditMeaning('')
-    setEditImageFile(null)
-  }
-
-  const handleUpdateCard = async (card) => {
-    if (!editWord.trim() || !editMeaning.trim()) return
-    setUploading(true)
-
-    let final_image_url = card.image_url
-
-    try {
-      // 새 이미지가 선택된 경우 업로드
-      if (editImageFile) {
-        const fileExt = editImageFile.name.split('.').pop()
-        const fileName = `${Date.now()}-${Math.floor(Math.random() * 1000)}.${fileExt}`
-        
-        const { error: uploadError } = await supabase.storage
-          .from('word-images')
-          .upload(fileName, editImageFile)
-
-        if (uploadError) throw uploadError
-        
-        // 이전 이미지 삭제 (선택 사항)
-        if (card.image_url) {
-          const oldFileName = card.image_url.split('/').pop()
-          await supabase.storage.from('word-images').remove([oldFileName])
-        }
-        
-        final_image_url = createPublicImageUrl(fileName)
-      }
-
-      const { error } = await supabase
-        .from('cards')
-        .update({ word: editWord, meaning: editMeaning, image_url: final_image_url })
-        .eq('id', card.id)
-      
-      if (error) throw error
-      
-      setCards(cards.map(c => c.id === card.id ? { ...c, word: editWord, meaning: editMeaning, image_url: final_image_url } : c))
-      setEditingId(null)
-    } catch (error) {
-      alert(error.message)
-    } finally {
-      setUploading(false)
-    }
-  }
-
-  const handleDeleteCard = async (card) => {
-    if (!confirm('정말 삭제하시겠습니까?')) return
-    try {
-      if (card.image_url) {
-        const fileName = card.image_url.split('/').pop()
-        await supabase.storage.from('word-images').remove([fileName])
-      }
-
-      const { error } = await supabase.from('cards').delete().eq('id', card.id)
-      if (error) throw error
-      setCards(cards.filter(c => c.id !== card.id))
-    } catch (error) {
-      alert(error.message)
+    const updates = newOrder.map((card, index) => ({ id: card.id, display_order: index }))
+    for (const update of updates) {
+      await supabase.from('cards').update({ display_order: update.display_order }).eq('id', update.id)
     }
   }
 
   if (loading) return <div className="container" style={{ textAlign: 'center', padding: '5rem' }}>로딩 중...</div>
 
   return (
-    <div className="container" style={{ maxWidth: '900px' }}>
-      <div style={{ marginBottom: '2rem' }}>
-        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-secondary)', textDecoration: 'none', marginBottom: '1rem' }}>
-          <ArrowLeft size={18} /> 대시보드로 돌아가기
-        </Link>
-        <h1 className="text-gradient" style={{ fontSize: '2.5rem' }}>{set?.title} 관리</h1>
-      </div>
+    <div className="container" style={{ maxWidth: '800px' }}>
+      <AnimatePresence>
+        {zoomedImage && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setZoomedImage(null)}
+            style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.9)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, cursor: 'zoom-out', padding: '1.5rem' }}
+          >
+            <motion.img initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }} src={zoomedImage} style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: '12px' }} />
+            <button style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', padding: '0.8rem', borderRadius: '50%', cursor: 'pointer' }}><X size={24} /></button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      <section className="card" style={{ marginBottom: '3rem', background: 'rgba(99, 102, 241, 0.05)', border: '1px solid var(--accent-color)' }}>
-        <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Plus size={20} /> 새 단어 추가
+      <header style={{ marginBottom: '2.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Link to="/" style={{ color: 'var(--text-secondary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <ArrowLeft size={18} /> 대시보드
+        </Link>
+        <div style={{ textAlign: 'right' }}>
+          <h2 style={{ fontSize: '1.5rem' }}>{set.title}</h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>총 {cards.length}개의 단어</p>
+        </div>
+      </header>
+
+      {/* 단어 추가 폼 */}
+      <section className="card" style={{ marginBottom: '3rem', background: 'rgba(255,255,255,0.02)' }}>
+        <h3 style={{ marginBottom: '1.5rem', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Plus size={18} color="var(--accent-color)" /> 새로운 단어 추가
         </h3>
         <form onSubmit={handleAddCard} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.2rem' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>단어 (앞면)</label>
-              <textarea
-                className="card"
-                style={{ height: '100px', padding: '1rem', background: 'var(--bg-color)', color: 'white', border: '1px solid var(--glass-border)', resize: 'vertical' }}
-                placeholder="단어나 문장"
-                value={newWord}
-                onChange={(e) => setNewWord(e.target.value)}
-              />
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>뜻 (뒷면)</label>
-              <textarea
-                className="card"
-                style={{ height: '100px', padding: '1rem', background: 'var(--bg-color)', color: 'white', border: '1px solid var(--glass-border)', resize: 'vertical' }}
-                placeholder="의미나 설명"
-                value={newMeaning}
-                onChange={(e) => setNewMeaning(e.target.value)}
-              />
-            </div>
+          <div className="input-row">
+            <textarea
+              className="card legible-input"
+              style={{ flex: 1, background: 'var(--bg-color)', color: 'white', padding: '1.2rem', minHeight: '120px', resize: 'vertical' }}
+              placeholder="단어 (예: Apple)"
+              value={newCard.word}
+              onChange={(e) => setNewCard({ ...newCard, word: e.target.value })}
+            />
+            <textarea
+              className="card legible-input"
+              style={{ flex: 1, background: 'var(--bg-color)', color: 'white', padding: '1.2rem', minHeight: '120px', resize: 'vertical' }}
+              placeholder="뜻 (예: 사과)"
+              value={newCard.meaning}
+              onChange={(e) => setNewCard({ ...newCard, meaning: e.target.value })}
+            />
           </div>
-          
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <label htmlFor="image-input" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--glass)', padding: '0.5rem 1rem', borderRadius: '12px', border: '1px solid var(--glass-border)', fontSize: '0.9rem' }}>
-                <ImageIcon size={18} /> {imageFile ? imageFile.name : '이미지 첨부'}
-              </label>
-              <input id="image-input" type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => setImageFile(e.target.files[0])} />
-              {imageFile && <button type="button" onClick={() => setImageFile(null)} style={{ background: 'none', color: 'var(--danger)', fontSize: '0.8rem' }}>취소</button>}
-            </div>
-            <button type="submit" className="btn-primary" disabled={uploading} style={{ padding: '0.8rem 2.5rem' }}>
-              {uploading ? <Loader2 className="animate-spin" /> : '세트에 추가하기'}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+            <label className="card" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1rem', background: 'rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+              <ImageIcon size={18} /> {newCard.image ? '이미지 교체' : '이미지 첨부'}
+              <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleImageChange(e)} />
+            </label>
+            {newCard.preview && (
+              <div onClick={() => setZoomedImage(newCard.preview)} style={{ position: 'relative', width: '60px', height: '60px', borderRadius: '8px', overflow: 'hidden', cursor: 'zoom-in' }}>
+                <img src={newCard.preview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <button type="button" onClick={(e) => { e.stopPropagation(); setNewCard({ ...newCard, image: null, preview: null }); }} style={{ position: 'absolute', top: 0, right: 0, background: 'rgba(0,0,0,0.5)', color: 'white', padding: '2px', border: 'none' }}><X size={12} /></button>
+              </div>
+            )}
+            <button type="submit" className="btn-primary" disabled={actionLoading} style={{ marginLeft: 'auto', padding: '0.8rem 2rem' }}>
+              {actionLoading ? <Loader2 className="animate-spin" size={20} /> : '추가하기'}
             </button>
           </div>
         </form>
       </section>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <h3 style={{ marginBottom: '1rem' }}>단어 목록 ({cards.length})</h3>
-        <Reorder.Group axis="y" values={cards} onReorder={handleReorder} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', listStyle: 'none', padding: 0 }}>
-          {cards.map((card) => (
-            <Reorder.Item key={card.id} value={card}>
-              <div className="card" style={{ padding: '1.2rem', background: editingId === card.id ? 'var(--card-bg)' : 'rgba(255,255,255,0.03)' }}>
-                {editingId === card.id ? (
-                  /* 수정 모드 */
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                      <textarea className="card" style={{ padding: '0.8rem', background: 'var(--bg-color)', color: 'white', minHeight: '80px' }} value={editWord} onChange={(e) => setEditWord(e.target.value)} />
-                      <textarea className="card" style={{ padding: '0.8rem', background: 'var(--bg-color)', color: 'white', minHeight: '80px' }} value={editMeaning} onChange={(e) => setEditMeaning(e.target.value)} />
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <label htmlFor={`edit-image-${card.id}`} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--glass)', padding: '0.4rem 0.8rem', borderRadius: '8px', fontSize: '0.85rem' }}>
-                          <ImageIcon size={16} /> {editImageFile ? editImageFile.name : '이미지 교체'}
-                        </label>
-                        <input id={`edit-image-${card.id}`} type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => setEditImageFile(e.target.files[0])} />
-                        {card.image_url && !editImageFile && <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>기존 이미지 있음</span>}
+      {/* 단어 리스트 */}
+      <Reorder.Group axis="y" values={cards} onReorder={handleReorder} style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        {cards.map((card) => (
+          <Reorder.Item 
+            key={card.id} 
+            value={card} 
+            style={{ listStyle: 'none' }}
+            initial={false} // 초기 애니메이션 비활성화 (깜빡임 방지)
+          >
+            <div className={`card ${editingCard?.id === card.id ? 'editing' : ''}`} style={{ 
+              display: 'flex', alignItems: 'center', gap: '1.2rem', padding: '1.2rem',
+              background: editingCard?.id === card.id ? 'rgba(99,102,241,0.05)' : 'var(--card-bg)',
+              borderColor: editingCard?.id === card.id ? 'var(--accent-color)' : 'var(--glass-border)',
+              transition: 'background-color 0.2s, border-color 0.2s' // 색상만 부드럽게
+            }}>
+              <div style={{ cursor: 'grab', color: 'var(--text-secondary)' }}><GripVertical size={20} /></div>
+              
+              <div style={{ flex: 1, position: 'relative', minHeight: editingCard?.id === card.id ? '250px' : 'auto' }}>
+                <AnimatePresence mode="wait">
+                  {editingCard?.id === card.id ? (
+                    // 수정 모드
+                    <motion.form 
+                      key="edit"
+                      initial={{ opacity: 0 }} 
+                      animate={{ opacity: 1 }} 
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.15 }}
+                      onSubmit={handleUpdateCard} 
+                      style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
+                    >
+                      <div className="input-row">
+                        <textarea className="card legible-input" style={{ flex: 1, background: 'var(--bg-color)', color: 'white', padding: '1rem', minHeight: '100px', resize: 'vertical' }} value={editingCard.word} onChange={(e) => setEditingCard({ ...editingCard, word: e.target.value })} />
+                        <textarea className="card legible-input" style={{ flex: 1, background: 'var(--bg-color)', color: 'white', padding: '1rem', minHeight: '100px', resize: 'vertical' }} value={editingCard.meaning} onChange={(e) => setEditingCard({ ...editingCard, meaning: e.target.value })} />
                       </div>
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button onClick={cancelEditing} style={{ background: 'var(--glass)', color: 'white', padding: '0.5rem 1rem' }}>취소</button>
-                        <button onClick={() => handleUpdateCard(card)} className="btn-primary" disabled={uploading}>
-                          {uploading ? <Loader2 className="animate-spin" /> : '저장'}
-                        </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1.2rem', justifyContent: 'flex-end' }}>
+                         <label style={{ cursor: 'pointer', color: 'var(--accent-color)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <ImageIcon size={16} /> 이미지 변경
+                            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleImageChange(e, true)} />
+                         </label>
+                         <button type="button" onClick={() => setEditingCard(null)} style={{ background: 'none', color: 'var(--text-secondary)', fontSize: '0.85rem', cursor: 'pointer' }}>취소</button>
+                         <button type="submit" className="btn-primary" style={{ padding: '0.5rem 1.2rem', fontSize: '0.85rem' }}>저장</button>
                       </div>
-                    </div>
-                  </div>
-                ) : (
-                  /* 일반 모드 */
-                  <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 2fr auto', alignItems: 'center', gap: '1.5rem' }}>
-                    <div style={{ cursor: 'grab', color: 'var(--text-secondary)' }}><DragHandle size={20} /></div>
-                    <div style={{ fontWeight: '700', fontSize: '1.1rem', whiteSpace: 'pre-wrap' }}>{card.word}</div>
-                    <div style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                      <span style={{ whiteSpace: 'pre-wrap' }}>{card.meaning}</span>
+                    </motion.form>
+                  ) : (
+                    // 일반 모드
+                    <motion.div 
+                      key="view"
+                      initial={{ opacity: 0 }} 
+                      animate={{ opacity: 1 }} 
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.15 }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '1.2rem', width: '100%' }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: '700', fontSize: '1.1rem', marginBottom: '0.3rem', whiteSpace: 'pre-wrap' }}>{card.word}</div>
+                        <div style={{ color: 'white', fontSize: '0.9rem', fontWeight: '400', opacity: 0.85, whiteSpace: 'pre-wrap' }}>{card.meaning}</div>
+                      </div>
                       {card.image_url && (
-                        <div style={{ width: '40px', height: '40px', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--glass-border)' }}>
-                          <img src={card.image_url} alt="card" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <div onClick={() => setZoomedImage(card.image_url)} style={{ width: '48px', height: '48px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--glass-border)', flexShrink: 0, cursor: 'zoom-in' }}>
+                          <img src={card.image_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         </div>
                       )}
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button onClick={() => startEditing(card)} style={{ background: 'var(--glass)', color: 'var(--text-secondary)', padding: '0.5rem' }}><Edit2 size={18} /></button>
-                      <button onClick={() => handleDeleteCard(card)} style={{ background: 'none', color: 'var(--danger)', padding: '0.5rem' }}><Trash2 size={18} /></button>
-                    </div>
-                  </div>
-                )}
+                      <div style={{ display: 'flex', gap: '0.3rem', flexShrink: 0 }}>
+                        <button onClick={() => setEditingCard({ ...card, image: null, preview: card.image_url })} className="btn-hover-icon" style={{ background: 'none', color: 'var(--text-secondary)', padding: '0.6rem', cursor: 'pointer' }} title="수정"><Edit2 size={18} /></button>
+                        <button onClick={() => handleDeleteCard(card.id, card.image_url)} className="btn-hover-danger" style={{ background: 'none', color: 'rgba(244, 63, 94, 0.4)', padding: '0.6rem', cursor: 'pointer' }} title="삭제"><Trash2 size={18} /></button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
-            </Reorder.Item>
-          ))}
-        </Reorder.Group>
-      </div>
+            </div>
+          </Reorder.Item>
+        ))}
+      </Reorder.Group>
+
+      <style>{`
+        .input-row { display: flex; flex-direction: column; gap: 1rem; }
+        .legible-input { font-family: inherit; font-size: 0.95rem; line-height: 1.5; }
+        .btn-hover-icon:hover { color: var(--accent-color) !important; }
+        .btn-hover-danger:hover { color: var(--danger) !important; background: rgba(244, 63, 94, 0.05) !important; border-radius: 8px; }
+        @media (max-width: 600px) {
+          .container { padding: 1rem; }
+          .card { padding: 1rem; }
+        }
+      `}</style>
     </div>
   )
 }
