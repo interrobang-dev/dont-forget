@@ -145,7 +145,7 @@ export default function Dashboard({ session }) {
         )}
 
         <div style={{ textAlign: 'center', marginTop: session?.user ? '0.5rem' : '1.5rem' }}>
-          <h1 className="text-gradient" style={{ fontSize: 'clamp(2.5rem, 8vw, 3.5rem)', marginBottom: '0.5rem' }}>까먹지마!</h1>
+          <h1 className="text-gradient brand-title" style={{ fontSize: 'clamp(2.5rem, 8vw, 3.5rem)', marginBottom: '0.5rem' }}>Don't Forget!</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>자신만의 단어장을 만들고 스마트하게 학습하세요.</p>
         </div>
       </header>

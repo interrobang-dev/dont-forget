@@ -38,6 +38,11 @@ function App() {
   return (
     <Router basename={import.meta.env.BASE_URL}>
       <div className="app-container">
+        {/* 다이내믹 백그라운드 글로우 */}
+        <div className="bg-glow-container">
+          <div className="bg-glow-circle glow-1"></div>
+          <div className="bg-glow-circle glow-2"></div>
+        </div>
         <Routes>
           <Route 
             path="/" 

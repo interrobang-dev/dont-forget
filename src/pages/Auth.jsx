@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import bgImage from '../assets/dont-forger-bg.png'
 
 export default function Auth() {
   const [loading, setLoading] = useState(false)
@@ -28,10 +29,22 @@ export default function Auth() {
   }
 
   return (
-    <div className="container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
-      <div className="card animate-fade" style={{ maxWidth: '400px', width: '100%', textAlign: 'center' }}>
-        <h1 className="text-gradient" style={{ marginBottom: '1.5rem', fontSize: '2.5rem' }}>까먹지마!</h1>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>나만의 스마트한 단어 기억 도우미</p>
+    <div className="container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', padding: '1rem' }}>
+      <div className="card animate-fade" style={{ maxWidth: '400px', width: '100%', textAlign: 'center', overflow: 'hidden', padding: '2.5rem 1.5rem 1.5rem 1.5rem', position: 'relative' }}>
+        {/* 카드 자체 배경 이미지 레이어 */}
+        <div style={{
+          position: 'absolute',
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundImage: `url(${bgImage})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          opacity: 0.08,
+          zIndex: 0,
+          pointerEvents: 'none'
+        }} />
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <h1 className="text-gradient brand-title" style={{ marginBottom: '0.8rem', fontSize: '5.0rem' }}>Don't Forget!</h1>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', fontSize: '0.95rem' }}>나만의 스마트한 단어 기억 도우미</p>
         
         <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <input
@@ -64,6 +77,7 @@ export default function Auth() {
         >
           {isSignUp ? '이미 계정이 있나요? 로그인' : '계정이 없으신가요? 회원가입'}
         </button>
+        </div>
       </div>
     </div>
   )
