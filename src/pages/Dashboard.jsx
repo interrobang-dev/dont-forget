@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { Plus, Trash2, Play, Edit2, Clock, Layers, Loader2, ClipboardList, BookOpen } from 'lucide-react'
+import { Plus, Trash2, Play, Edit2, Clock, Layers, Loader2, ClipboardList, BookOpen, LogOut } from 'lucide-react'
 
-export default function Dashboard() {
+export default function Dashboard({ session }) {
   const [sets, setSets] = useState([])
   const [newSetTitle, setNewSetTitle] = useState('')
   const [loading, setLoading] = useState(true)
@@ -11,6 +11,16 @@ export default function Dashboard() {
   const [quickSettings, setQuickSettings] = useState({}) 
 
   const navigate = useNavigate()
+
+  const handleSignOut = async () => {
+    try {
+      const { error } = await supabase.auth.signOut()
+      if (error) throw error
+      navigate('/login')
+    } catch (error) {
+      alert(error.message)
+    }
+  }
 
   useEffect(() => {
     fetchSets()
@@ -92,9 +102,52 @@ export default function Dashboard() {
 
   return (
     <div className="container" style={{ maxWidth: '1000px' }}>
-      <header style={{ marginBottom: '3rem', textAlign: 'center' }}>
-        <h1 className="text-gradient" style={{ fontSize: 'clamp(2.5rem, 8vw, 3.5rem)', marginBottom: '0.5rem' }}>까먹지마!</h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>자신만의 단어장을 만들고 스마트하게 학습하세요.</p>
+      <header style={{ marginBottom: '3rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        {/* 상단 로그인 정보 & 로그아웃 바 */}
+        {session?.user && (
+          <div style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            alignItems: 'center',
+            gap: '1rem',
+            background: 'rgba(255, 255, 255, 0.03)',
+            padding: '0.6rem 1.2rem',
+            borderRadius: '50px',
+            border: '1px solid var(--glass-border)',
+            alignSelf: 'flex-end',
+            fontSize: '0.85rem'
+          }}>
+            <span style={{ color: 'var(--text-secondary)', fontWeight: '500' }}>
+              {session.user.email}
+            </span>
+            <span style={{ color: 'rgba(255,255,255,0.1)' }}>|</span>
+            <button 
+              onClick={handleSignOut}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.2rem 0.5rem',
+                borderRadius: '6px',
+                fontWeight: '600',
+                transition: 'all 0.2s'
+              }}
+              className="btn-logout"
+            >
+              <LogOut size={14} />
+              <span>로그아웃</span>
+            </button>
+          </div>
+        )}
+
+        <div style={{ textAlign: 'center', marginTop: session?.user ? '0.5rem' : '1.5rem' }}>
+          <h1 className="text-gradient" style={{ fontSize: 'clamp(2.5rem, 8vw, 3.5rem)', marginBottom: '0.5rem' }}>까먹지마!</h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>자신만의 단어장을 만들고 스마트하게 학습하세요.</p>
+        </div>
       </header>
 
       {/* 새 세트 만들기 */}
@@ -234,6 +287,11 @@ export default function Dashboard() {
 
         .btn-hover-icon:hover { color: var(--accent-color) !important; }
         .btn-hover-danger:hover { color: var(--danger) !important; background: rgba(244, 63, 94, 0.05) !important; }
+        
+        .btn-logout:hover {
+          color: var(--danger) !important;
+          background: rgba(244, 63, 94, 0.08) !important;
+        }
       `}</style>
     </div>
   )
