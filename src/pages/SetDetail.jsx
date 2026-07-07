@@ -5,7 +5,7 @@ import { motion, Reorder, AnimatePresence } from 'framer-motion'
 import { 
   ArrowLeft, Plus, Trash2, Save, GripVertical, 
   Image as ImageIcon, X, Loader2, BookOpen, Clock, Edit2,
-  Globe, Lock
+  Globe, Lock, CheckCircle2
 } from 'lucide-react'
 
 export default function SetDetail() {
@@ -59,6 +59,20 @@ export default function SetDetail() {
       alert('공개 상태 변경에 실패했습니다: ' + error.message)
     } finally {
       setActionLoading(false)
+    }
+  }
+
+  const toggleMemorized = async (cardId, currentStatus) => {
+    try {
+      const { error } = await supabase
+        .from('cards')
+        .update({ is_memorized: !currentStatus })
+        .eq('id', cardId)
+      
+      if (error) throw error
+      setCards(cards.map(c => c.id === cardId ? { ...c, is_memorized: !currentStatus } : c))
+    } catch (error) {
+      alert('카드 암기 여부 업데이트 실패: ' + error.message)
     }
   }
 
@@ -287,7 +301,7 @@ export default function SetDetail() {
                       animate={{ opacity: 1 }} 
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.15 }}
-                      style={{ display: 'flex', alignItems: 'center', gap: '1.2rem', width: '100%' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', width: '100%' }}
                     >
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: '700', fontSize: '1.1rem', marginBottom: '0.3rem', whiteSpace: 'pre-wrap' }}>{card.word}</div>
@@ -298,6 +312,79 @@ export default function SetDetail() {
                           <img src={card.image_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         </div>
                       )}
+                      
+                      {/* 암기 여부 세그먼트 (아이콘만 표시 - 편집/삭제 단추 크기와 동기화) */}
+                      <div 
+                        style={{ 
+                          display: 'flex', 
+                          background: 'rgba(0, 0, 0, 0.3)', 
+                          padding: '3px', 
+                          borderRadius: '10px', 
+                          border: '1px solid var(--glass-border)',
+                          userSelect: 'none',
+                          height: '42px',
+                          alignItems: 'center',
+                          gap: '3px',
+                          marginLeft: '0.8rem',
+                          marginRight: '0.2rem',
+                          flexShrink: 0
+                        }}
+                      >
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            if (card.is_memorized) {
+                              toggleMemorized(card.id, true)
+                            }
+                          }} 
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            border: 'none',
+                            padding: 0,
+                            margin: 0,
+                            cursor: 'pointer',
+                            borderRadius: '8px',
+                            width: '34px', // 컨테이너 높이 42px 패딩 3px*2=6px 제외한 딱 들어맞는 크기
+                            height: '34px',
+                            background: !card.is_memorized ? 'var(--accent-color)' : 'transparent',
+                            color: !card.is_memorized ? 'white' : 'rgba(255, 255, 255, 0.35)',
+                            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                          }}
+                          title="학습 중"
+                        >
+                          <BookOpen size={18} />
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            if (!card.is_memorized) {
+                              toggleMemorized(card.id, false)
+                            }
+                          }} 
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            border: 'none',
+                            padding: 0,
+                            margin: 0,
+                            cursor: 'pointer',
+                            borderRadius: '8px',
+                            width: '34px',
+                            height: '34px',
+                            background: card.is_memorized ? 'var(--success)' : 'transparent',
+                            color: card.is_memorized ? 'white' : 'rgba(255, 255, 255, 0.35)',
+                            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                            boxShadow: card.is_memorized ? '0 2px 6px rgba(21, 128, 61, 0.25)' : 'none'
+                          }}
+                          title="암기 완료"
+                        >
+                          <CheckCircle2 size={18} />
+                        </button>
+                      </div>
+
                       <div style={{ display: 'flex', gap: '0.3rem', flexShrink: 0 }}>
                         <button onClick={() => setEditingCard({ ...card, image: null, preview: card.image_url })} className="btn-hover-icon" style={{ background: 'none', color: 'var(--text-secondary)', padding: '0.6rem', cursor: 'pointer' }} title="수정"><Edit2 size={18} /></button>
                         <button onClick={() => handleDeleteCard(card.id, card.image_url)} className="btn-hover-danger" style={{ background: 'none', color: 'rgba(244, 63, 94, 0.4)', padding: '0.6rem', cursor: 'pointer' }} title="삭제"><Trash2 size={18} /></button>

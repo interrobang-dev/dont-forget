@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Eye, EyeOff, Settings, Shuffle, X, Type } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Eye, EyeOff, Settings, Shuffle, X, Type, BookOpen, RotateCcw } from 'lucide-react'
 
 export default function StudyMode() {
   const { id } = useParams()
@@ -62,6 +62,7 @@ export default function StudyMode() {
     localStorage.setItem('quick_study_settings', JSON.stringify(allSettings))
   }
 
+  // 진행 순서(순차/무작위) 토글 설정 변경 시에만 목록 재배열 및 인덱스 초기화
   useEffect(() => {
     if (originalCards.length === 0) return
 
@@ -73,7 +74,7 @@ export default function StudyMode() {
     setDisplayCards(currentList)
     setCurrentIndex(0)
     setIsFlipped(false)
-  }, [isRandom, originalCards])
+  }, [isRandom])
 
   const fetchCards = async () => {
     try {
@@ -84,8 +85,17 @@ export default function StudyMode() {
         .order('display_order', { ascending: true })
       
       if (error) throw error
-      setOriginalCards(data || [])
-      setDisplayCards(data || [])
+      const cardsData = data || []
+      setOriginalCards(cardsData)
+      
+      // 최초 데이터를 가져왔을 때만 상태 설정
+      let currentList = [...cardsData]
+      if (isRandom) {
+        currentList = currentList.sort(() => Math.random() - 0.5)
+      }
+      setDisplayCards(currentList)
+      setCurrentIndex(0)
+      setIsFlipped(false)
     } catch (error) {
       console.error(error.message)
       navigate('/')
@@ -93,6 +103,29 @@ export default function StudyMode() {
       setLoading(false)
     }
   }
+
+  // 키보드 단축키 바인딩: 스페이스바(카드 뒤집기), 좌우 방향키(이전/다음 카드 이동)
+  useEffect(() => {
+    if (displayCards.length === 0) return
+
+    const handleKeyDown = (e) => {
+      if (e.code === 'Space') {
+        e.preventDefault()
+        setIsFlipped((prev) => !prev)
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault()
+        handlePrev()
+      } else if (e.code === 'ArrowRight') {
+        e.preventDefault()
+        handleNext()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [displayCards])
 
   const handleNext = () => {
     setIsFlipped(false)
@@ -123,6 +156,28 @@ export default function StudyMode() {
       setDisplayCards(updateList(displayCards))
     } catch (error) {
       alert(error.message)
+    }
+  }
+
+  const handleResetAllMemorized = async () => {
+    if (!confirm("이 세트의 모든 단어를 '학습 중' 상태로 초기화하시겠습니까?")) return
+    setLoading(true)
+    try {
+      const { error } = await supabase
+        .from('cards')
+        .update({ is_memorized: false })
+        .eq('set_id', id)
+      
+      if (error) throw error
+      
+      const resetList = (list) => list.map(c => ({ ...c, is_memorized: false }))
+      setOriginalCards(resetList(originalCards))
+      setDisplayCards(resetList(displayCards))
+      alert("모든 단어 카드의 암기 여부가 '학습 중' 상태로 초기화되었습니다.")
+    } catch (error) {
+      alert("초기화 실패: " + error.message)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -211,6 +266,34 @@ export default function StudyMode() {
                   <button onClick={() => { setMeaningSize('large'); saveSettings('meaningSize', 'large'); }} style={getSegmentBtnStyle(meaningSize === 'large')}>크게</button>
                 </div>
               </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', alignItems: 'center', justifyContent: 'center' }}>
+                <span className="setting-label">학습 초기화</span>
+                <button
+                  type="button"
+                  onClick={handleResetAllMemorized}
+                  className="btn-primary"
+                  style={{
+                    padding: '0.5rem 1.2rem',
+                    fontSize: '0.8rem',
+                    fontWeight: '800',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    background: 'rgba(153, 27, 27, 0.12)',
+                    border: '1px solid var(--accent-color)',
+                    color: 'var(--text-primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    height: '32px',
+                    fontFamily: 'inherit',
+                    filter: 'none',
+                    transition: 'all 0.2s'
+                  }}
+                  title="모든 단어를 '학습 중'으로 되돌립니다"
+                >
+                  <RotateCcw size={14} /> 전부 학습 중으로 초기화
+                </button>
+              </div>
             </div>
           </motion.div>
         )}
@@ -269,9 +352,66 @@ export default function StudyMode() {
           </div>
 
           <div style={{ marginTop: '2.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'center' }}>
-            <button onClick={(e) => { e.stopPropagation(); toggleMemorized(currentCard.id, currentCard.is_memorized); }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: currentCard.is_memorized ? 'var(--success)' : 'var(--glass)', color: 'white', border: currentCard.is_memorized ? 'none' : '1px solid var(--glass-border)', padding: '0.7rem 2.5rem', borderRadius: '50px', fontWeight: '600', cursor: 'pointer' }}>
-              <CheckCircle2 size={20} /> {currentCard.is_memorized ? '암기 완료!' : '아직 외우는 중'}
-            </button>
+            {/* 암기 여부 설정 세그먼트 컨트롤 */}
+            <div 
+              className="setting-segment" 
+              style={{ 
+                maxWidth: '280px', 
+                width: '100%', 
+                display: 'flex', 
+                background: 'rgba(0, 0, 0, 0.3)', 
+                padding: '3px', 
+                borderRadius: '10px', 
+                border: '1px solid var(--glass-border)',
+                userSelect: 'none'
+              }} 
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button 
+                type="button"
+                onClick={() => {
+                  if (currentCard.is_memorized) {
+                    toggleMemorized(currentCard.id, true)
+                  }
+                }} 
+                style={{
+                  ...getSegmentBtnStyle(!currentCard.is_memorized),
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.4rem',
+                  padding: '0.6rem 1rem',
+                  fontFamily: 'inherit'
+                }}
+              >
+                <BookOpen size={16} />
+                <span>학습 중</span>
+              </button>
+              <button 
+                type="button"
+                onClick={() => {
+                  if (!currentCard.is_memorized) {
+                    toggleMemorized(currentCard.id, false)
+                  }
+                }} 
+                style={{
+                  ...getSegmentBtnStyle(currentCard.is_memorized),
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.4rem',
+                  padding: '0.6rem 1rem',
+                  background: currentCard.is_memorized ? 'var(--success)' : 'transparent',
+                  boxShadow: currentCard.is_memorized ? '0 2px 8px rgba(21, 128, 61, 0.3)' : 'none',
+                  fontFamily: 'inherit'
+                }}
+              >
+                <CheckCircle2 size={16} />
+                <span>암기 완료</span>
+              </button>
+            </div>
             <div style={{ display: 'flex', gap: '1rem', width: '100%', justifyContent: 'center' }}>
               <button className="card btn-hover" onClick={(e) => { e.stopPropagation(); handlePrev(); }} style={{ padding: '0.8rem 2.5rem', cursor: 'pointer' }}><ChevronLeft size={24} /></button>
               <button className="card btn-hover" onClick={(e) => { e.stopPropagation(); handleNext(); }} style={{ padding: '0.8rem 2.5rem', cursor: 'pointer' }}><ChevronRight size={24} /></button>
