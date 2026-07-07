@@ -102,7 +102,18 @@ export default function Dashboard({ session }) {
 
   return (
     <div className="container" style={{ maxWidth: '1000px' }}>
-      <header style={{ marginBottom: '3rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      <header style={{ 
+        marginBottom: '1rem', 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        gap: '1.5rem',
+        flexWrap: 'wrap'
+      }}>
+        <div style={{ textAlign: 'left' }}>
+          <h1 className="text-gradient brand-title" style={{ fontSize: 'clamp(2.5rem, 8vw, 3.5rem)', marginBottom: '0.5rem' }}>Dont Forget!</h1>
+        </div>
+
         {/* 상단 로그인 정보 & 로그아웃 바 */}
         {session?.user && (
           <div style={{
@@ -114,7 +125,6 @@ export default function Dashboard({ session }) {
             padding: '0.6rem 1.2rem',
             borderRadius: '50px',
             border: '1px solid var(--glass-border)',
-            alignSelf: 'flex-end',
             fontSize: '0.85rem'
           }}>
             <span style={{ color: 'var(--text-secondary)', fontWeight: '500' }}>
@@ -143,11 +153,6 @@ export default function Dashboard({ session }) {
             </button>
           </div>
         )}
-
-        <div style={{ textAlign: 'center', marginTop: session?.user ? '0.5rem' : '1.5rem' }}>
-          <h1 className="text-gradient brand-title" style={{ fontSize: 'clamp(2.5rem, 8vw, 3.5rem)', marginBottom: '0.5rem' }}>Don't Forget!</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>자신만의 단어장을 만들고 스마트하게 학습하세요.</p>
-        </div>
       </header>
 
       {/* 새 세트 만들기 */}
@@ -155,7 +160,6 @@ export default function Dashboard({ session }) {
         <form onSubmit={handleCreateSet} style={{ display: 'flex', gap: '0.8rem', flexWrap: 'wrap' }}>
           <input
             type="text" 
-            className="card"
             style={{ flex: '1 1 280px', background: 'var(--bg-color)', color: 'white', padding: '0.8rem 1.2rem', fontSize: '1rem' }}
             placeholder="새로운 단어 세트 이름..."
             value={newSetTitle}

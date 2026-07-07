@@ -161,14 +161,14 @@ export default function SetDetail() {
         <form onSubmit={handleAddCard} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
           <div className="input-row">
             <textarea
-              className="card legible-input"
+              className="legible-input"
               style={{ flex: 1, background: 'var(--bg-color)', color: 'white', padding: '1.2rem', minHeight: '120px', resize: 'vertical' }}
               placeholder="단어 (예: Apple)"
               value={newCard.word}
               onChange={(e) => setNewCard({ ...newCard, word: e.target.value })}
             />
             <textarea
-              className="card legible-input"
+              className="legible-input"
               style={{ flex: 1, background: 'var(--bg-color)', color: 'white', padding: '1.2rem', minHeight: '120px', resize: 'vertical' }}
               placeholder="뜻 (예: 사과)"
               value={newCard.meaning}
@@ -224,8 +224,8 @@ export default function SetDetail() {
                       style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
                     >
                       <div className="input-row">
-                        <textarea className="card legible-input" style={{ flex: 1, background: 'var(--bg-color)', color: 'white', padding: '1rem', minHeight: '100px', resize: 'vertical' }} value={editingCard.word} onChange={(e) => setEditingCard({ ...editingCard, word: e.target.value })} />
-                        <textarea className="card legible-input" style={{ flex: 1, background: 'var(--bg-color)', color: 'white', padding: '1rem', minHeight: '100px', resize: 'vertical' }} value={editingCard.meaning} onChange={(e) => setEditingCard({ ...editingCard, meaning: e.target.value })} />
+                        <textarea className="legible-input" style={{ flex: 1, background: 'var(--bg-color)', color: 'white', padding: '1rem', minHeight: '100px', resize: 'vertical' }} value={editingCard.word} onChange={(e) => setEditingCard({ ...editingCard, word: e.target.value })} />
+                        <textarea className="legible-input" style={{ flex: 1, background: 'var(--bg-color)', color: 'white', padding: '1rem', minHeight: '100px', resize: 'vertical' }} value={editingCard.meaning} onChange={(e) => setEditingCard({ ...editingCard, meaning: e.target.value })} />
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '1.2rem', justifyContent: 'flex-end' }}>
                          <label style={{ cursor: 'pointer', color: 'var(--accent-color)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>

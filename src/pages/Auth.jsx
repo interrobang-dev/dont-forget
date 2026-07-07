@@ -43,12 +43,13 @@ export default function Auth() {
           pointerEvents: 'none'
         }} />
         <div style={{ position: 'relative', zIndex: 1 }}>
-          <h1 className="text-gradient brand-title" style={{ marginBottom: '0.8rem', fontSize: '5.0rem' }}>Don't Forget!</h1>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', fontSize: '0.95rem' }}>나만의 스마트한 단어 기억 도우미</p>
+          <h1 className="text-gradient brand-title" style={{ fontSize: 'clamp(2.5rem, 12vw, 5.0rem)' }}>Don't Forget!</h1>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', fontSize: '0.95rem', lineHeight: '1.6' }}>
+            망각을 극복하기 위한 나만의 단어장
+          </p>
         
         <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <input
-            className="card"
             style={{ width: '100%', padding: '0.8rem', background: 'var(--glass)', color: 'white' }}
             type="email"
             placeholder="이메일 주소"
@@ -57,7 +58,6 @@ export default function Auth() {
             onChange={(e) => setEmail(e.target.value)}
           />
           <input
-            className="card"
             style={{ width: '100%', padding: '0.8rem', background: 'var(--glass)', color: 'white' }}
             type="password"
             placeholder="비밀번호"
