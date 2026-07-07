@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Trash2, Play, Edit2, Clock, Layers, Loader2, ClipboardList, BookOpen, LogOut, Search, Globe, Lock } from 'lucide-react'
+import { Plus, Trash2, Play, Edit2, Clock, Layers, Loader2, ClipboardList, BookOpen, LogOut, Search, Globe, Lock, CheckCircle2, MoreVertical, Settings } from 'lucide-react'
 
 export default function Dashboard({ session }) {
   const [sets, setSets] = useState([])
@@ -10,6 +10,10 @@ export default function Dashboard({ session }) {
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [quickSettings, setQuickSettings] = useState({}) 
+  
+  // UX 개선을 위한 상태 선언
+  const [activeDropdownId, setActiveDropdownId] = useState(null)
+  const [showSettingsMap, setShowSettingsMap] = useState({})
   
   // Together 공유 모드 관련 상태 변수 (내부 제어명은 'private' / 'public' 표준 명칭 사용)
   const [activeMode, setActiveMode] = useState('private') 
@@ -21,6 +25,15 @@ export default function Dashboard({ session }) {
   const [newSetIsPublic, setNewSetIsPublic] = useState(false)
 
   const navigate = useNavigate()
+
+  // 드롭다운 바깥 영역 클릭 시 닫기 핸들러
+  useEffect(() => {
+    const handleOutsideClick = () => {
+      setActiveDropdownId(null)
+    }
+    window.addEventListener('click', handleOutsideClick)
+    return () => window.removeEventListener('click', handleOutsideClick)
+  }, [])
 
   const handleSignOut = async () => {
     try {
@@ -48,7 +61,7 @@ export default function Dashboard({ session }) {
       const { data: userData } = await supabase.auth.getUser()
       const { data, error } = await supabase
         .from('word_sets')
-        .select(`*, cards(count)`)
+        .select(`*, cards(id, is_memorized)`)
         .eq('user_id', userData.user.id)
         .order('created_at', { ascending: false })
       
@@ -57,7 +70,13 @@ export default function Dashboard({ session }) {
       
       const initialSettings = {}
       data.forEach(s => {
-        initialSettings[s.id] = { direction: 'word', order: 'seq' }
+        initialSettings[s.id] = { 
+          direction: s.study_direction || 'word', 
+          order: s.study_order || 'seq',
+          wordSize: s.word_size || 'medium',
+          meaningSize: s.meaning_size || 'medium',
+          excludeMemorized: s.exclude_memorized !== undefined ? s.exclude_memorized : false
+        }
       })
       setQuickSettings(initialSettings)
     } catch (error) {
@@ -82,8 +101,17 @@ export default function Dashboard({ session }) {
         }])
         .select()
       if (error) throw error
-      setSets([data[0], ...sets])
-      setQuickSettings({ ...quickSettings, [data[0].id]: { direction: 'word', order: 'seq' } })
+      setSets([{ ...data[0], cards: [] }, ...sets])
+      setQuickSettings({ 
+        ...quickSettings, 
+        [data[0].id]: { 
+          direction: 'word', 
+          order: 'seq', 
+          wordSize: 'medium', 
+          meaningSize: 'medium', 
+          excludeMemorized: false 
+        } 
+      })
       setNewSetTitle('')
       setNewSetIsPublic(false)
     } catch (error) {
@@ -105,18 +133,64 @@ export default function Dashboard({ session }) {
   }
 
   const updateQuickSetting = (setId, key, value) => {
+    // 1. UI 상태 즉각 변경 (Optimistic Update)
     setQuickSettings(prev => ({
       ...prev,
       [setId]: { ...prev[setId], [key]: value }
     }))
+
+    // 2. Supabase DB에 실시간 저장 연동
+    const dbFieldMap = {
+      direction: 'study_direction',
+      order: 'study_order',
+      wordSize: 'word_size',
+      meaningSize: 'meaning_size',
+      excludeMemorized: 'exclude_memorized'
+    }
+    const dbField = dbFieldMap[key]
+    supabase
+      .from('word_sets')
+      .update({ [dbField]: value })
+      .eq('id', setId)
+      .then(({ error }) => {
+        if (error) console.error('설정 저장 실패:', error.message)
+      })
+  }
+
+  const toggleSettings = (setId) => {
+    setShowSettingsMap(prev => ({
+      ...prev,
+      [setId]: !prev[setId]
+    }))
   }
 
   const startStudy = (setId) => {
-    const config = quickSettings[setId] || { direction: 'word', order: 'seq' }
-    navigate(`/set/${setId}/study?dir=${config.direction}&ord=${config.order}`)
+    // 1. Supabase Cloud DB에 최근 학습일 실시간 기록
+    supabase
+      .from('word_sets')
+      .update({ last_studied_at: new Date().toISOString() })
+      .eq('id', setId)
+      .then(({ error }) => {
+        if (error) console.error('학습 이력 Supabase 저장 실패:', error.message)
+      })
+
+    // 2. 예비용 로컬 스토리지 적재
+    localStorage.setItem(`last_study_${setId}`, new Date().toISOString())
+    navigate(`/set/${setId}/study`)
   }
 
   const startTest = (setId) => {
+    // 1. Supabase Cloud DB에 최근 학습일 실시간 기록
+    supabase
+      .from('word_sets')
+      .update({ last_studied_at: new Date().toISOString() })
+      .eq('id', setId)
+      .then(({ error }) => {
+        if (error) console.error('학습 이력 Supabase 저장 실패:', error.message)
+      })
+
+    // 2. 예비용 로컬 스토리지 적재
+    localStorage.setItem(`last_study_${setId}`, new Date().toISOString())
     navigate(`/set/${setId}/test`)
   }
 
@@ -342,80 +416,341 @@ export default function Dashboard({ session }) {
                 border: '1px solid var(--glass-border)',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '1.2rem'
+                gap: '1.2rem',
+                position: 'relative'
               }}>
                 {/* [정보 + 관리] 상단 바 */}
                 <div style={{ width: '100%' }}>
-                  {/* 첫 번째 줄: 제목 */}
-                  <h3 style={{ fontSize: '1.4rem', fontWeight: '800', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: '0.8rem' }}>
-                    {set.title}
-                  </h3>
-                  
-                  {/* 두 번째 줄: 단어 수 및 관리 버튼 */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.85rem', fontWeight: '600', flexWrap: 'wrap' }}>
-                      <BookOpen size={14} color="var(--accent-color)" />
-                      <span>{set.cards?.[0]?.count || 0} 단어</span>
-                      <span style={{ margin: '0 0.3rem', opacity: 0.3 }}>|</span>
-                      <Clock size={14} style={{ opacity: 0.6 }} />
-                      <span style={{ opacity: 0.6 }}>{new Date(set.created_at).toLocaleDateString()}</span>
-                      <span style={{ margin: '0 0.3rem', opacity: 0.3 }}>|</span>
+                  {/* 첫 번째 줄: 제목(아이콘 포함) + 더보기 메뉴 배치 */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.6rem', marginBottom: '0.6rem', position: 'relative' }}>
+                    <h3 
+                      style={{ 
+                        fontSize: '1.2rem', 
+                        fontWeight: '800', 
+                        margin: 0,
+                        flex: 1,
+                        minWidth: 0,
+                        maxWidth: '78%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem'
+                      }}
+                      title={set.title}
+                    >
                       {set.is_public ? (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', color: 'var(--accent-color)', fontWeight: '700' }} title="전체 공개 중">
-                          <Globe size={13} /> 공개
-                        </span>
+                        <Globe size={16} color="var(--accent-color)" style={{ flexShrink: 0 }} />
                       ) : (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', color: 'var(--text-secondary)' }} title="나만 보기 (비공개)">
-                          <Lock size={13} /> 비공개
-                        </span>
+                        <Lock size={16} color="var(--text-secondary)" style={{ flexShrink: 0, opacity: 0.7 }} />
                       )}
-                    </div>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
+                        {set.title}
+                      </span>
+                    </h3>
                     
-                    <div style={{ display: 'flex', gap: '0.3rem' }}>
+                    {/* 더보기 (⋮) 관리 메뉴 버튼 */}
+                    <div style={{ position: 'relative', display: 'inline-block' }}>
                       <button 
-                        onClick={() => navigate(`/set/${set.id}/manage`)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setActiveDropdownId(activeDropdownId === set.id ? null : set.id)
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--text-secondary)',
+                          cursor: 'pointer',
+                          padding: '0.3rem',
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          transition: 'background-color 0.2s'
+                        }}
                         className="btn-hover-icon"
-                        style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', color: 'var(--text-secondary)', padding: '0.5rem', borderRadius: '8px', cursor: 'pointer' }}
-                        title="관리"
+                        title="더보기"
                       >
-                        <Edit2 size={16} />
+                        <MoreVertical size={18} />
                       </button>
-                      <button 
-                        onClick={() => handleDeleteSet(set.id)}
-                        className="btn-hover-danger"
-                        style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', color: 'var(--text-secondary)', padding: '0.5rem', borderRadius: '8px', cursor: 'pointer' }}
-                        title="삭제"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+
+                      {/* 드롭다운 메뉴 (수정/삭제) */}
+                      <AnimatePresence>
+                        {activeDropdownId === set.id && (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                            transition={{ duration: 0.15 }}
+                            style={{
+                              position: 'absolute',
+                              right: 0,
+                              top: '100%',
+                              marginTop: '0.5rem',
+                              background: 'rgba(30, 27, 27, 0.96)',
+                              border: '1px solid var(--glass-border)',
+                              borderRadius: '8px',
+                              padding: '0.4rem 0',
+                              zIndex: 100,
+                              minWidth: '110px',
+                              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
+                              backdropFilter: 'blur(12px)'
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button 
+                              onClick={() => {
+                                setActiveDropdownId(null)
+                                navigate(`/set/${set.id}/manage`)
+                              }}
+                              style={{
+                                width: '100%',
+                                background: 'none',
+                                border: 'none',
+                                color: 'var(--text-primary)',
+                                padding: '0.6rem 1rem',
+                                fontSize: '0.85rem',
+                                textAlign: 'left',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                transition: 'background 0.2s'
+                              }}
+                              className="btn-hover-icon"
+                            >
+                              <Edit2 size={14} /> 수정하기
+                            </button>
+                            <button 
+                              onClick={() => {
+                                setActiveDropdownId(null)
+                                handleDeleteSet(set.id)
+                              }}
+                              style={{
+                                width: '100%',
+                                background: 'none',
+                                border: 'none',
+                                color: 'var(--danger)',
+                                padding: '0.6rem 1rem',
+                                fontSize: '0.85rem',
+                                textAlign: 'left',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                transition: 'background 0.2s'
+                              }}
+                              className="btn-hover-danger"
+                            >
+                              <Trash2 size={14} /> 삭제하기
+                            </button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                   </div>
+                  
+                  {/* 두 번째 줄: 단어 수 및 암기완료 수 */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.82rem', fontWeight: '600', flexWrap: 'wrap' }}>
+                    <Layers size={13} style={{ opacity: 0.6 }} />
+                    <span>총 {set.cards ? set.cards.length : 0}개</span>
+                    
+                    <span style={{ margin: '0 0.1rem', opacity: 0.25 }}>|</span>
+                    
+                    <CheckCircle2 size={13} color="var(--success)" />
+                    <span style={{ color: 'var(--success)' }}>암기 완료 {set.cards ? set.cards.filter(c => c.is_memorized).length : 0}개</span>
+                  </div>
+
+                  {/* 세 번째 줄: 암기율 프로그레스 바 */}
+                  {(() => {
+                    const total = set.cards ? set.cards.length : 0
+                    const memorized = set.cards ? set.cards.filter(c => c.is_memorized).length : 0
+                    const percentage = total > 0 ? Math.round((memorized / total) * 100) : 0
+                    
+                    return (
+                      <div style={{ marginTop: '0.6rem', width: '100%' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
+                          <span style={{ opacity: 0.7 }}>암기 달성도</span>
+                          <span style={{ color: percentage === 100 ? 'var(--success)' : 'var(--text-primary)', fontWeight: '700' }}>{percentage}%</span>
+                        </div>
+                        <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.06)', borderRadius: '10px', overflow: 'hidden' }}>
+                          <div 
+                            style={{ 
+                              width: `${percentage}%`, 
+                              height: '100%', 
+                              background: percentage === 100 
+                                ? 'linear-gradient(90deg, #10b981, #059669)' 
+                                : 'linear-gradient(90deg, var(--accent-color), #f43f5e)', 
+                              borderRadius: '10px',
+                              transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)' 
+                            }} 
+                          />
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </div>
 
                 {/* [학습 설정 + 메인 액션] 하단 컨트롤러 */}
-                <div className="study-controls">
-                  {/* 설정 부분 */}
-                  <div className="setting-group">
-                    <div className="segment-control">
-                      <button onClick={() => updateQuickSetting(set.id, 'direction', 'word')} style={getSegmentStyle(quickSettings[set.id]?.direction === 'word')}>단어 우선</button>
-                      <button onClick={() => updateQuickSetting(set.id, 'direction', 'meaning')} style={getSegmentStyle(quickSettings[set.id]?.direction === 'meaning')}>뜻 우선</button>
+                <div className="study-controls" style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                   {/* 1. 학습/테스트 설정 토글 바 */}
+                   <button 
+                     onClick={(e) => {
+                       e.stopPropagation()
+                       toggleSettings(set.id)
+                     }}
+                     className="settings-toggle-btn"
+                     style={{
+                       width: '100%',
+                       background: showSettingsMap[set.id] ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.03)',
+                       border: showSettingsMap[set.id] ? '1px solid rgba(255,255,255,0.18)' : '1px solid var(--glass-border)',
+                       color: showSettingsMap[set.id] ? 'var(--text-primary)' : 'var(--text-secondary)',
+                       padding: '0.6rem 1rem',
+                       borderRadius: '10px',
+                       cursor: 'pointer',
+                       display: 'flex',
+                       alignItems: 'center',
+                       justifyContent: 'space-between',
+                       transition: 'all 0.25s ease',
+                       fontFamily: 'inherit',
+                       fontSize: '0.8rem',
+                       fontWeight: 'bold'
+                     }}
+                    title="학습 및 테스트 진행 방식 옵션을 설정합니다"
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Settings 
+                        size={16} 
+                        style={{ 
+                          transition: 'transform 0.4s ease',
+                          transform: showSettingsMap[set.id] ? 'rotate(90deg)' : 'rotate(0deg)'
+                        }} 
+                      />
+                      <span>학습 / 테스트 진행 방식 설정</span>
                     </div>
-                    <div className="segment-control">
-                      <button onClick={() => updateQuickSetting(set.id, 'order', 'seq')} style={getSegmentStyle(quickSettings[set.id]?.order === 'seq')}>순차적</button>
-                      <button onClick={() => updateQuickSetting(set.id, 'order', 'rand')} style={getSegmentStyle(quickSettings[set.id]?.order === 'rand')}>무작위</button>
-                    </div>
-                  </div>
+                    <span style={{ fontSize: '0.7rem', opacity: 0.5 }}>
+                      {showSettingsMap[set.id] ? '접기 ▲' : '펼치기 ▼'}
+                    </span>
+                  </button>
 
-                  {/* 실행 버튼 부분 */}
-                  <div className="action-group">
-                    <button onClick={() => startStudy(set.id)} className="btn-study">
-                      <Play size={18} fill="currentColor" /> <span>학습 시작</span>
-                    </button>
-                    <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '0.2rem 0.5rem' }} />
-                    <button onClick={() => startTest(set.id)} className="btn-test">
-                      <ClipboardList size={18} /> <span>테스트</span>
-                    </button>
-                  </div>
+                  {/* 세그먼트 옵션 슬라이드 다운 */}
+                  <AnimatePresence initial={false}>
+                    {showSettingsMap[set.id] && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.25, ease: 'easeInOut' }}
+                        style={{ overflow: 'hidden', width: '100%' }}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', background: 'rgba(0,0,0,0.18)', padding: '0.6rem 0.8rem', borderRadius: '10px', marginTop: '0.2rem' }}>
+                          {/* 1. 대상 단어 범위 */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', height: '26px' }}>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 'bold', whiteSpace: 'nowrap', width: '105px', display: 'inline-block', flexShrink: 0 }}>대상 단어 범위</span>
+                            <div className="segment-control" style={{ display: 'flex', width: '100%', maxWidth: '160px', flexShrink: 1, height: '100%', padding: '2px', boxSizing: 'border-box', alignItems: 'stretch' }}>
+                              <button onClick={() => updateQuickSetting(set.id, 'excludeMemorized', false)} style={getSegmentStyle(quickSettings[set.id]?.excludeMemorized === false)}>전체</button>
+                              <button onClick={() => updateQuickSetting(set.id, 'excludeMemorized', true)} style={getSegmentStyle(quickSettings[set.id]?.excludeMemorized === true)}>암기 제외</button>
+                            </div>
+                          </div>
+
+                          {/* 2. 카드 방향 */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', height: '26px' }}>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 'bold', whiteSpace: 'nowrap', width: '105px', display: 'inline-block', flexShrink: 0 }}>카드 방향</span>
+                            <div className="segment-control" style={{ display: 'flex', width: '100%', maxWidth: '160px', flexShrink: 1, height: '100%', padding: '2px', boxSizing: 'border-box', alignItems: 'stretch' }}>
+                              <button onClick={() => updateQuickSetting(set.id, 'direction', 'word')} style={getSegmentStyle(quickSettings[set.id]?.direction === 'word')}>단어 우선</button>
+                              <button onClick={() => updateQuickSetting(set.id, 'direction', 'meaning')} style={getSegmentStyle(quickSettings[set.id]?.direction === 'meaning')}>뜻 우선</button>
+                            </div>
+                          </div>
+
+                          {/* 3. 진행 순서 */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', height: '26px' }}>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 'bold', whiteSpace: 'nowrap', width: '105px', display: 'inline-block', flexShrink: 0 }}>진행 순서</span>
+                            <div className="segment-control" style={{ display: 'flex', width: '100%', maxWidth: '160px', flexShrink: 1, height: '100%', padding: '2px', boxSizing: 'border-box', alignItems: 'stretch' }}>
+                              <button onClick={() => updateQuickSetting(set.id, 'order', 'seq')} style={getSegmentStyle(quickSettings[set.id]?.order === 'seq')}>순차적</button>
+                              <button onClick={() => updateQuickSetting(set.id, 'order', 'rand')} style={getSegmentStyle(quickSettings[set.id]?.order === 'rand')}>무작위</button>
+                            </div>
+                          </div>
+
+                          {/* 4. 단어 텍스트 크기 */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', height: '26px' }}>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 'bold', whiteSpace: 'nowrap', width: '105px', display: 'inline-block', flexShrink: 0 }}>단어 텍스트 크기</span>
+                            <div className="segment-control" style={{ display: 'flex', width: '100%', maxWidth: '160px', flexShrink: 1, height: '100%', padding: '2px', boxSizing: 'border-box', alignItems: 'stretch' }}>
+                              <button onClick={() => updateQuickSetting(set.id, 'wordSize', 'small')} style={getSegmentStyle(quickSettings[set.id]?.wordSize === 'small')}>작게</button>
+                              <button onClick={() => updateQuickSetting(set.id, 'wordSize', 'medium')} style={getSegmentStyle(quickSettings[set.id]?.wordSize === 'medium')}>보통</button>
+                              <button onClick={() => updateQuickSetting(set.id, 'wordSize', 'large')} style={getSegmentStyle(quickSettings[set.id]?.wordSize === 'large')}>크게</button>
+                            </div>
+                          </div>
+
+                          {/* 5. 뜻 텍스트 크기 */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', height: '26px' }}>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 'bold', whiteSpace: 'nowrap', width: '105px', display: 'inline-block', flexShrink: 0 }}>뜻 텍스트 크기</span>
+                            <div className="segment-control" style={{ display: 'flex', width: '100%', maxWidth: '160px', flexShrink: 1, height: '100%', padding: '2px', boxSizing: 'border-box', alignItems: 'stretch' }}>
+                              <button onClick={() => updateQuickSetting(set.id, 'meaningSize', 'small')} style={getSegmentStyle(quickSettings[set.id]?.meaningSize === 'small')}>작게</button>
+                              <button onClick={() => updateQuickSetting(set.id, 'meaningSize', 'medium')} style={getSegmentStyle(quickSettings[set.id]?.meaningSize === 'medium')}>보통</button>
+                              <button onClick={() => updateQuickSetting(set.id, 'meaningSize', 'large')} style={getSegmentStyle(quickSettings[set.id]?.meaningSize === 'large')}>크게</button>
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* 2. 학습 시작 버튼 (100% 가득 참) */}
+                  <button 
+                    onClick={() => startStudy(set.id)} 
+                    className="btn-study"
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      width: '100%',
+                      padding: '0.8rem 1.2rem',
+                      fontFamily: 'inherit'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Play size={16} fill="currentColor" />
+                      <span>학습 시작</span>
+                    </div>
+                    <span style={{ fontSize: '0.72rem', opacity: 0.65, fontWeight: 'normal', fontFamily: 'inherit' }}>
+                      {(() => {
+                        const lastStudy = set.last_studied_at || localStorage.getItem(`last_study_${set.id}`)
+                        return lastStudy ? `최근: ${new Date(lastStudy).toLocaleDateString()}` : '학습 이력 없음'
+                      })()}
+                    </span>
+                  </button>
+
+                  {/* 3. 테스트 버튼 (100% 가득 참) */}
+                  <button 
+                    onClick={() => startTest(set.id)} 
+                    className="btn-test"
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      width: '100%',
+                      padding: '0.8rem 1.2rem',
+                      fontFamily: 'inherit'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <ClipboardList size={18} /> 
+                      <span>테스트</span>
+                    </div>
+                    <span style={{ fontSize: '0.72rem', opacity: 0.6, fontWeight: 'normal', fontFamily: 'inherit' }}>
+                      {(() => {
+                        if (set.last_test_date) {
+                          return `최근: ${new Date(set.last_test_date).toLocaleDateString()} (${set.last_test_score}/${set.last_test_total})`
+                        }
+                        const lastTestStr = localStorage.getItem(`last_test_${set.id}`)
+                        if (lastTestStr) {
+                          try {
+                            const lastTest = JSON.parse(lastTestStr)
+                            return `최근: ${new Date(lastTest.date).toLocaleDateString()} (${lastTest.score}/${lastTest.total})`
+                          } catch (e) {}
+                        }
+                        return '테스트 이력 없음'
+                      })()}
+                    </span>
+                  </button>
                 </div>
               </div>
             ))}
@@ -684,6 +1019,35 @@ export default function Dashboard({ session }) {
         }
         @media (max-width: 850px) {
           .sets-grid { grid-template-columns: 1fr; }
+          .study-controls { padding: 0 !important; background: transparent !important; }
+        }
+        @media (max-width: 600px) {
+          .container { padding: 0.8rem !important; }
+          .dashboard-item { padding: 1rem !important; }
+        }
+        @media (max-width: 480px) {
+          .btn-study, .btn-test {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 0.25rem !important;
+            padding: 0.6rem 0.8rem !important;
+          }
+          .btn-study > div, .btn-test > div {
+            width: 100%;
+          }
+          .btn-study span, .btn-test span {
+            font-size: 0.72rem !important;
+          }
+          .settings-toggle-btn {
+            padding: 0.5rem 0.6rem !important;
+          }
+          .settings-toggle-btn span {
+            font-size: 0.72rem !important;
+          }
+          .segment-control button {
+            font-size: 0.62rem !important;
+            padding: 0 0.2rem !important;
+          }
         }
 
         .dashboard-item { transition: all 0.2s ease-out; height: 100%; display: flex; flex-direction: column; }
@@ -722,14 +1086,19 @@ export default function Dashboard({ session }) {
 
 function getSegmentStyle(active) {
   return {
-    padding: '0.4rem 0.6rem',
-    fontSize: '0.72rem',
-    borderRadius: '6px',
+    height: '100%',
+    padding: '0 0.3rem',
+    fontSize: '0.68rem',
+    borderRadius: '5px',
     background: active ? 'var(--accent-color)' : 'transparent',
     color: active ? 'white' : 'rgba(203, 213, 225, 0.6)',
     fontWeight: '800',
     transition: 'all 0.2s',
     border: 'none',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    whiteSpace: 'nowrap'
   }
 }

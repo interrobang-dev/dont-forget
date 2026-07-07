@@ -27,23 +27,14 @@ export default function StudyMode() {
   const [isRandom, setIsRandom] = useState(false)
   const [wordSize, setWordSize] = useState('medium')
   const [meaningSize, setMeaningSize] = useState('medium')
+  const [excludeMemorized, setExcludeMemorized] = useState(false)
 
-  // 초기 설정 불러오기
+  // 초기 설정 및 카드 데이터 로드
   useEffect(() => {
-    const savedAll = localStorage.getItem('quick_study_settings')
-    const allSettings = savedAll ? JSON.parse(savedAll) : {}
-    const mySettings = allSettings[id] || {}
-
-    // URL 파라미터가 있으면 우선 적용, 없으면 저장된 값 사용
-    setDirection(queryParams.get('dir') || mySettings.direction || 'word')
-    setIsRandom(queryParams.get('ord') === 'rand' || mySettings.order === 'rand' || false)
-    setWordSize(mySettings.wordSize || 'medium')
-    setMeaningSize(mySettings.meaningSize || 'medium')
-    
-    fetchCards()
+    loadStudySession()
   }, [id])
 
-  // 설정 변경 시 localStorage 저장
+  // 설정 변경 시 localStorage 저장 (기존 백업 호환)
   const saveSettings = (key, value) => {
     const savedAll = localStorage.getItem('quick_study_settings')
     const allSettings = savedAll ? JSON.parse(savedAll) : {}
@@ -62,6 +53,49 @@ export default function StudyMode() {
     localStorage.setItem('quick_study_settings', JSON.stringify(allSettings))
   }
 
+  // 대상 단어 범위 토글 및 실시간 카드 필터링 재쿼리 핸들러
+  const handleToggleExcludeMemorized = async (value) => {
+    setExcludeMemorized(value)
+    
+    // 1. Supabase Cloud DB 실시간 저장
+    try {
+      await supabase
+        .from('word_sets')
+        .update({ exclude_memorized: value })
+        .eq('id', id)
+    } catch (e) {
+      console.error('설정 저장 실패:', e.message)
+    }
+
+    // 2. 카드 목록 실시간 재쿼리 및 갱신 (진행 도중이므로 인덱스 0 회귀)
+    try {
+      let query = supabase
+        .from('cards')
+        .select('*')
+        .eq('set_id', id)
+      
+      if (value) {
+        query = query.eq('is_memorized', false)
+      }
+      
+      const { data: cardsData, error: cardsError } = await query.order('display_order', { ascending: true })
+      if (cardsError) throw cardsError
+      
+      const original = cardsData || []
+      setOriginalCards(original)
+      
+      let currentList = [...original]
+      if (isRandom) {
+        currentList = currentList.sort(() => Math.random() - 0.5)
+      }
+      setDisplayCards(currentList)
+      setCurrentIndex(0)
+      setIsFlipped(false)
+    } catch (err) {
+      console.error('카드 갱신 실패:', err.message)
+    }
+  }
+
   // 진행 순서(순차/무작위) 토글 설정 변경 시에만 목록 재배열 및 인덱스 초기화
   useEffect(() => {
     if (originalCards.length === 0) return
@@ -76,28 +110,57 @@ export default function StudyMode() {
     setIsFlipped(false)
   }, [isRandom])
 
-  const fetchCards = async () => {
+  const loadStudySession = async () => {
+    setLoading(true)
     try {
-      const { data, error } = await supabase
+      // 1. Supabase에서 단어 세트의 5종 공통 진행 방식 설정을 API 조회
+      const { data: wordSet, error: setError } = await supabase
+        .from('word_sets')
+        .select('study_direction, study_order, word_size, meaning_size, exclude_memorized')
+        .eq('id', id)
+        .single()
+      
+      if (setError) throw setError
+      
+      const dir = wordSet.study_direction || 'word'
+      const ord = wordSet.study_order || 'seq'
+      const wSz = wordSet.word_size || 'medium'
+      const mSz = wordSet.meaning_size || 'medium'
+      const exMem = wordSet.exclude_memorized || false
+      
+      // 리액트 로컬 상태 설정
+      setDirection(dir)
+      setIsRandom(ord === 'rand')
+      setWordSize(wSz)
+      setMeaningSize(mSz)
+      setExcludeMemorized(exMem)
+      
+      // 2. 설정된 exclude_memorized 여부에 따라 카드 데이터를 Supabase에서 분기 쿼리
+      let query = supabase
         .from('cards')
         .select('*')
         .eq('set_id', id)
-        .order('display_order', { ascending: true })
       
-      if (error) throw error
-      const cardsData = data || []
-      setOriginalCards(cardsData)
+      if (exMem) {
+        query = query.eq('is_memorized', false)
+      }
       
-      // 최초 데이터를 가져왔을 때만 상태 설정
-      let currentList = [...cardsData]
-      if (isRandom) {
+      const { data: cardsData, error: cardsError } = await query.order('display_order', { ascending: true })
+      if (cardsError) throw cardsError
+      
+      const original = cardsData || []
+      setOriginalCards(original)
+      
+      // 순차 / 무작위 정렬 반영
+      let currentList = [...original]
+      if (ord === 'rand') {
         currentList = currentList.sort(() => Math.random() - 0.5)
       }
       setDisplayCards(currentList)
       setCurrentIndex(0)
       setIsFlipped(false)
-    } catch (error) {
-      console.error(error.message)
+    } catch (err) {
+      console.error('학습 세션 로드 실패:', err.message)
       navigate('/')
     } finally {
       setLoading(false)
@@ -236,6 +299,13 @@ export default function StudyMode() {
         {showSettings && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} style={{ overflow: 'hidden', marginBottom: '1.5rem' }}>
             <div className="card" style={{ background: 'rgba(255,255,255,0.03)', padding: '1.5rem', display: 'flex', gap: '2rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', alignItems: 'center' }}>
+                <span className="setting-label">대상 단어 범위</span>
+                <div className="setting-segment">
+                  <button onClick={() => handleToggleExcludeMemorized(false)} style={getSegmentBtnStyle(excludeMemorized === false)}>전체</button>
+                  <button onClick={() => handleToggleExcludeMemorized(true)} style={getSegmentBtnStyle(excludeMemorized === true)}>암기 제외</button>
+                </div>
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', alignItems: 'center' }}>
                 <span className="setting-label">카드 방향</span>
                 <div className="setting-segment">

@@ -21,40 +21,77 @@ export default function TestMode() {
   // 단어와 뜻 크기 개별 관리
   const [wordSize, setWordSize] = useState('medium')
   const [meaningSize, setMeaningSize] = useState('medium')
+  const [direction, setDirection] = useState('word')
 
-  // 설정 로드
+  // 초기 설정 및 테스트 카드 로드
   useEffect(() => {
-    const savedAll = localStorage.getItem('quick_study_settings')
-    const allSettings = savedAll ? JSON.parse(savedAll) : {}
-    const mySettings = allSettings[id] || {}
-
-    setWordSize(mySettings.wordSize || 'medium')
-    setMeaningSize(mySettings.meaningSize || 'medium')
-    
-    fetchUnmemorizedCards()
+    loadTestSession()
   }, [id])
 
-  // 설정 저장
-  const saveSettings = (key, value) => {
-    const savedAll = localStorage.getItem('quick_study_settings')
-    const allSettings = savedAll ? JSON.parse(savedAll) : {}
-    const currentMySettings = allSettings[id] || {}
+  // 설정 저장 (Supabase API 실시간 적재)
+  const saveSettings = async (key, value) => {
+    const dbFieldMap = {
+      wordSize: 'word_size',
+      meaningSize: 'meaning_size'
+    }
+    const dbField = dbFieldMap[key]
+    if (!dbField) return
 
-    allSettings[id] = { ...currentMySettings, [key]: value }
-    localStorage.setItem('quick_study_settings', JSON.stringify(allSettings))
+    try {
+      await supabase
+        .from('word_sets')
+        .update({ [dbField]: value })
+        .eq('id', id)
+    } catch (e) {
+      console.error('설정 저장 실패:', e.message)
+    }
   }
 
-  const fetchUnmemorizedCards = async () => {
+  const loadTestSession = async () => {
+    setLoading(true)
     try {
-      const { data, error } = await supabase
+      // 1. Supabase에서 단어 세트의 5종 공통 진행 방식 설정을 API 조회
+      const { data: wordSet, error: setError } = await supabase
+        .from('word_sets')
+        .select('study_direction, study_order, word_size, meaning_size, exclude_memorized')
+        .eq('id', id)
+        .single()
+      
+      if (setError) throw setError
+      
+      const dir = wordSet.study_direction || 'word'
+      const ord = wordSet.study_order || 'seq'
+      const wSz = wordSet.word_size || 'medium'
+      const mSz = wordSet.meaning_size || 'medium'
+      const exMem = wordSet.exclude_memorized || false
+      
+      // 상태 설정
+      setDirection(dir)
+      setWordSize(wSz)
+      setMeaningSize(mSz)
+      
+      // 2. 설정된 exclude_memorized 여부에 따라 카드 데이터를 Supabase에서 분기 쿼리
+      let query = supabase
         .from('cards')
         .select('*')
         .eq('set_id', id)
-        .eq('is_memorized', false)
       
-      if (error) throw error
-      const shuffled = (data || []).sort(() => Math.random() - 0.5)
-      setCards(shuffled)
+      if (exMem) {
+        query = query.eq('is_memorized', false)
+      }
+      
+      const { data: cardsData, error: cardsError } = await query
+      if (cardsError) throw cardsError
+      
+      // 설정된 정렬 방식 적용
+      let finalCards = cardsData || []
+      if (ord === 'rand') {
+        finalCards = [...finalCards].sort(() => Math.random() - 0.5)
+      } else {
+        finalCards = [...finalCards].sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+      }
+      
+      setCards(finalCards)
     } catch (error) {
       console.error(error.message)
       navigate('/')
@@ -79,6 +116,27 @@ export default function TestMode() {
         setCurrentIndex(prev => prev + 1)
       }, 150)
     } else {
+      const finalScore = correctCount + (isCorrect ? 1 : 0)
+      
+      // 1. Supabase Cloud DB에 테스트 이력 실시간 저장
+      supabase
+        .from('word_sets')
+        .update({
+          last_test_date: new Date().toISOString(),
+          last_test_score: finalScore,
+          last_test_total: cards.length
+        })
+        .eq('id', id)
+        .then(({ error }) => {
+          if (error) console.error('테스트 이력 Supabase 저장 실패:', error.message)
+        })
+
+      // 2. 예비용 로컬 스토리지 적재
+      localStorage.setItem(`last_test_${id}`, JSON.stringify({
+        date: new Date().toISOString(),
+        score: finalScore,
+        total: cards.length
+      }))
       setTestFinished(true)
     }
   }
@@ -193,18 +251,29 @@ export default function TestMode() {
 
       <div style={{ height: '400px', perspective: '1200px', cursor: 'pointer' }} onClick={() => setIsFlipped(!isFlipped)}>
         <motion.div animate={{ rotateY: isFlipped ? 180 : 0 }} transition={{ duration: 0.6, type: 'spring', stiffness: 260, damping: 20 }} style={{ width: '100%', height: '100%', position: 'relative', transformStyle: 'preserve-3d' }}>
-          <div className="card" style={{ position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center', textAlign: 'center', border: '2px solid var(--glass-border)', padding: '2rem' }}>
-             <div className="legible-word" style={{ 
-               fontSize: getCalculatedSize(currentCard.word.length > 20 ? '1.8rem' : '2.8rem', wordSize),
-               transition: 'font-size 0.2s' 
-             }}>{currentCard.word}</div>
-          </div>
-          <div className="card" style={{ position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center', textAlign: 'center', color: '#e2e8f0', transform: 'rotateY(180deg)', border: '3px solid var(--accent-color)', padding: '2rem', boxShadow: 'inset 0 0 40px rgba(99, 102, 241, 0.1)' }}>
-             <div className="legible-word" style={{ 
-               fontSize: getCalculatedSize(currentCard.meaning.length > 30 ? '1.5rem' : '2.2rem', meaningSize),
-               transition: 'font-size 0.2s' 
-             }}>{currentCard.meaning}</div>
-          </div>
+          {(() => {
+            const frontText = direction === 'word' ? currentCard.word : currentCard.meaning
+            const backText = direction === 'word' ? currentCard.meaning : currentCard.word
+            
+            return (
+              <>
+                {/* 카드 앞면 */}
+                <div className="card" style={{ position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center', textAlign: 'center', border: '2px solid var(--glass-border)', padding: '2rem' }}>
+                   <div className="legible-word" style={{ 
+                     fontSize: getCalculatedSize(frontText.length > 20 ? '1.8rem' : '2.8rem', wordSize),
+                     transition: 'font-size 0.2s' 
+                   }}>{frontText}</div>
+                </div>
+                {/* 카드 뒷면 */}
+                <div className="card" style={{ position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center', textAlign: 'center', color: '#e2e8f0', transform: 'rotateY(180deg)', border: '3px solid var(--accent-color)', padding: '2rem', boxShadow: 'inset 0 0 40px rgba(99, 102, 241, 0.1)' }}>
+                   <div className="legible-word" style={{ 
+                     fontSize: getCalculatedSize(backText.length > 30 ? '1.5rem' : '2.2rem', meaningSize),
+                     transition: 'font-size 0.2s' 
+                   }}>{backText}</div>
+                </div>
+              </>
+            )
+          })()}
         </motion.div>
       </div>
 
