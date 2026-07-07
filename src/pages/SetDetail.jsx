@@ -4,7 +4,8 @@ import { supabase } from '../lib/supabase'
 import { motion, Reorder, AnimatePresence } from 'framer-motion'
 import { 
   ArrowLeft, Plus, Trash2, Save, GripVertical, 
-  Image as ImageIcon, X, Loader2, BookOpen, Clock, Edit2 
+  Image as ImageIcon, X, Loader2, BookOpen, Clock, Edit2,
+  Globe, Lock
 } from 'lucide-react'
 
 export default function SetDetail() {
@@ -40,6 +41,24 @@ export default function SetDetail() {
       navigate('/')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleTogglePublic = async () => {
+    if (actionLoading) return
+    setActionLoading(true)
+    try {
+      const newStatus = !set.is_public
+      const { error } = await supabase
+        .from('word_sets')
+        .update({ is_public: newStatus })
+        .eq('id', id)
+      if (error) throw error
+      setSet({ ...set, is_public: newStatus })
+    } catch (error) {
+      alert('공개 상태 변경에 실패했습니다: ' + error.message)
+    } finally {
+      setActionLoading(false)
     }
   }
 
@@ -147,9 +166,33 @@ export default function SetDetail() {
         <Link to="/" style={{ color: 'var(--text-secondary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <ArrowLeft size={18} /> 대시보드
         </Link>
-        <div style={{ textAlign: 'right' }}>
+        <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem' }}>
           <h2 style={{ fontSize: '1.5rem' }}>{set.title}</h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>총 {cards.length}개의 단어</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>총 {cards.length}개의 단어</p>
+            <span style={{ color: 'rgba(255,255,255,0.15)', fontSize: '0.8rem' }}>|</span>
+            <button
+              onClick={handleTogglePublic}
+              disabled={actionLoading}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+                fontSize: '0.8rem',
+                fontWeight: '700',
+                color: set.is_public ? 'var(--accent-color)' : 'var(--text-secondary)',
+                transition: 'color 0.2s',
+                filter: 'none'
+              }}
+              title={set.is_public ? "공개 설정됨 (클릭 시 비공개 전환)" : "비공개 설정됨 (클릭 시 공개 전환)"}
+            >
+              {set.is_public ? <><Globe size={14} /> 전체 공개</> : <><Lock size={14} /> 비공개</>}
+            </button>
+          </div>
         </div>
       </header>
 
