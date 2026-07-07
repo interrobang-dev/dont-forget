@@ -28,7 +28,32 @@
   --text-glow: 0 1px 4px rgba(0, 0, 0, 0.7);
 }
 
+/* 모던한 커스텀 스크롤 바 디자인 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(11, 10, 10, 0.6); /* --bg-color와 일치하는 어두운 계열 */
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(156, 142, 130, 0.25); /* --text-secondary 기반 황토색 투명 */
+  border: 2px solid var(--bg-color); /* 주변 여백 효과 */
+  border-radius: 10px;
+  transition: background-color 0.25s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-color) !important; /* 호버 시 강렬한 붉은색 피드백 */
+}
+
+/* Firefox 전용 호환성 */
 * {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(156, 142, 130, 0.25) rgba(11, 10, 10, 0.6);
   margin: 0;
   padding: 0;
   box-sizing: border-box;

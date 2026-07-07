@@ -286,7 +286,7 @@ export default function SetDetail() {
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '1.2rem', justifyContent: 'flex-end' }}>
                          <label style={{ cursor: 'pointer', color: 'var(--accent-color)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                            <ImageIcon size={16} /> 이미지 변경
+                            <ImageIcon size={16} /> 이미지 추가/변경
                             <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleImageChange(e, true)} />
                          </label>
                          <button type="button" onClick={() => setEditingCard(null)} style={{ background: 'none', color: 'var(--text-secondary)', fontSize: '0.85rem', cursor: 'pointer' }}>취소</button>
