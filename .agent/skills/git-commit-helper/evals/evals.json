@@ -1,0 +1,17 @@
+{
+  "skill_name": "git-commit-helper",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "지금까지 작업한 모바일 반응형 및 최상단 스크롤 보정 내역들을 커밋해줘.",
+      "expected_output": "The agent reviews code changes using git diff, generates a single-line English commit message following Conventional Commits, waits for user approval, and does not perform commit automatically.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "현재 변경된 코드를 읽고 커밋 메시지만 제안해봐.",
+      "expected_output": "The agent proposes a single-line English commit message and stops without attempting to commit.",
+      "files": []
+    }
+  ]
+}
