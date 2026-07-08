@@ -52,3 +52,15 @@ USING (EXISTS (
   2. 'word-images'라는 이름의 새로운 Bucket 생성
   3. Public Access 허용 (또는 필요에 따라 정책 설정)
 */
+-- 3. [ADD] 학습 및 테스트 최근 이력 컬럼 추가 (Supabase SQL Editor에서 실행하세요)
+ALTER TABLE word_sets ADD COLUMN last_studied_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE word_sets ADD COLUMN last_test_date TIMESTAMP WITH TIME ZONE;
+ALTER TABLE word_sets ADD COLUMN last_test_score INTEGER;
+ALTER TABLE word_sets ADD COLUMN last_test_total INTEGER;
+
+-- 4. [ADD] 학습/테스트 설정 컬럼 추가 (Supabase SQL Editor에서 실행하세요)
+ALTER TABLE word_sets ADD COLUMN study_direction TEXT DEFAULT 'word' NOT NULL;
+ALTER TABLE word_sets ADD COLUMN study_order TEXT DEFAULT 'seq' NOT NULL;
+ALTER TABLE word_sets ADD COLUMN word_size TEXT DEFAULT 'medium' NOT NULL;
+ALTER TABLE word_sets ADD COLUMN meaning_size TEXT DEFAULT 'medium' NOT NULL;
+ALTER TABLE word_sets ADD COLUMN exclude_memorized BOOLEAN DEFAULT FALSE NOT NULL;

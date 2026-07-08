@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import bgImage from '../assets/dont-forger-bg.png'
 
 export default function Auth() {
   const [loading, setLoading] = useState(false)
@@ -28,15 +29,22 @@ export default function Auth() {
   }
 
   return (
-    <div className="container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
-      <div className="card animate-fade" style={{ maxWidth: '400px', width: '100%', textAlign: 'center' }}>
-        <h1 className="text-gradient" style={{ marginBottom: '1.5rem', fontSize: '2.5rem' }}>까먹지마!</h1>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>나만의 스마트한 단어 기억 도우미</p>
+    <div className="auth-container">
+      <div className="card animate-fade auth-card">
+        {/* 카드 자체 배경 이미지 레이어 */}
+        <div 
+          className="auth-card-bg"
+          style={{ backgroundImage: `url(${bgImage})` }} 
+        />
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <h1 className="text-gradient brand-title">Don't Forget!</h1>
+          <p className="auth-subtitle">
+            망각을 극복하기 위한 나만의 단어장
+          </p>
         
-        <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <form onSubmit={handleAuth} className="auth-form">
           <input
-            className="card"
-            style={{ width: '100%', padding: '0.8rem', background: 'var(--glass)', color: 'white' }}
+            className="auth-input"
             type="email"
             placeholder="이메일 주소"
             value={email}
@@ -44,8 +52,7 @@ export default function Auth() {
             onChange={(e) => setEmail(e.target.value)}
           />
           <input
-            className="card"
-            style={{ width: '100%', padding: '0.8rem', background: 'var(--glass)', color: 'white' }}
+            className="auth-input"
             type="password"
             placeholder="비밀번호"
             value={password}
@@ -60,10 +67,11 @@ export default function Auth() {
         
         <button 
           onClick={() => setIsSignUp(!isSignUp)}
-          style={{ background: 'none', color: 'var(--accent-color)', marginTop: '1.5rem', fontSize: '0.9rem' }}
+          className="auth-toggle-btn"
         >
           {isSignUp ? '이미 계정이 있나요? 로그인' : '계정이 없으신가요? 회원가입'}
         </button>
+        </div>
       </div>
     </div>
   )
