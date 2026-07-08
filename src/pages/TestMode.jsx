@@ -236,7 +236,7 @@ export default function TestMode() {
 
   if (testFinished) return (
     <div className="container" style={{ textAlign: 'center', padding: '5rem' }}>
-      <div className="card" style={{ background: 'var(--glass)', padding: '3rem', borderRadius: '32px' }}>
+      <div className="card test-finished-card">
         <Award size={64} color="var(--accent-color)" style={{ marginBottom: '1.5rem' }} />
         <h1 className="text-gradient">Test Over!</h1>
         <p style={{ fontSize: '1.8rem', margin: '2rem 0' }}>{correctCount} / {cards.length} 정답</p>
@@ -257,58 +257,59 @@ export default function TestMode() {
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={() => setZoomedImage(null)}
-            style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.9)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, cursor: 'zoom-out', padding: '1.5rem' }}
+            className="zoom-modal-overlay"
           >
-            <motion.img initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }} src={zoomedImage} style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: '12px' }} />
-            <button style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', padding: '0.8rem', borderRadius: '50%', cursor: 'pointer' }}><X size={24} /></button>
+            <motion.img initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }} src={zoomedImage} className="zoom-modal-img" />
+            <button className="zoom-modal-close"><X size={24} /></button>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <header style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Link to={`/set/${id}/study`} style={{ color: 'var(--text-secondary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+      <header className="study-header">
+        <Link to={`/set/${id}/study`} className="study-back-btn">
           <ArrowLeft size={18} /> 테스트 중단
         </Link>
-        <div style={{ background: 'var(--glass)', padding: '0.3rem 1rem', borderRadius: '20px', fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '600' }}>
+        <div className="study-progress-badge">
           {currentIndex + 1} / {cards.length}
         </div>
         <button 
           onClick={() => setShowSettings(!showSettings)}
-          style={{ background: 'none', border: 'none', color: showSettings ? 'var(--accent-color)' : 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+          className="study-settings-btn"
+          style={{ color: showSettings ? 'var(--accent-color)' : 'var(--text-secondary)' }}
         >
-          <Settings size={20} /> <span style={{ fontSize: '0.9rem', fontWeight: '600' }}>설정</span>
+          <Settings size={20} /> <span>설정</span>
         </button>
       </header>
 
       <AnimatePresence>
         {showSettings && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} style={{ overflow: 'hidden', marginBottom: '1.5rem' }}>
-            <div className="card" style={{ background: 'rgba(255,255,255,0.03)', padding: '1.5rem', display: 'flex', gap: '1.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', alignItems: 'center' }}>
-                <span className="setting-label-mini">카드 방향</span>
-                <div className="setting-segment-mini">
+            <div className="card study-settings-panel">
+              <div className="setting-column">
+                <span className="setting-label">카드 방향</span>
+                <div className="setting-segment">
                   <button onClick={() => { setDirection('word'); saveSettings('direction', 'word'); }} style={getSegmentBtnStyle(direction === 'word')}>단어</button>
                   <button onClick={() => { setDirection('meaning'); saveSettings('direction', 'meaning'); }} style={getSegmentBtnStyle(direction === 'meaning')}>뜻</button>
                 </div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', alignItems: 'center' }}>
-                <span className="setting-label-mini">진행 순서</span>
-                <div className="setting-segment-mini">
+              <div className="setting-column">
+                <span className="setting-label">진행 순서</span>
+                <div className="setting-segment">
                   <button onClick={() => { setIsRandom(false); saveSettings('isRandom', false); }} style={getSegmentBtnStyle(!isRandom)}>순차</button>
                   <button onClick={() => { setIsRandom(true); saveSettings('isRandom', true); }} style={getSegmentBtnStyle(isRandom)}>무작위</button>
                 </div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', alignItems: 'center' }}>
-                <span className="setting-label-mini">단어 크기</span>
-                <div className="setting-segment-mini">
+              <div className="setting-column">
+                <span className="setting-label">단어 크기</span>
+                <div className="setting-segment">
                   <button onClick={() => { setWordSize('small'); saveSettings('wordSize', 'small'); }} style={getSegmentBtnStyle(wordSize === 'small')}>작게</button>
                   <button onClick={() => { setWordSize('medium'); saveSettings('wordSize', 'medium'); }} style={getSegmentBtnStyle(wordSize === 'medium')}>보통</button>
                   <button onClick={() => { setWordSize('large'); saveSettings('wordSize', 'large'); }} style={getSegmentBtnStyle(wordSize === 'large')}>크게</button>
                 </div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', alignItems: 'center' }}>
-                <span className="setting-label-mini">뜻 크기</span>
-                <div className="setting-segment-mini">
+              <div className="setting-column">
+                <span className="setting-label">뜻 크기</span>
+                <div className="setting-segment">
                   <button onClick={() => { setMeaningSize('small'); saveSettings('meaningSize', 'small'); }} style={getSegmentBtnStyle(meaningSize === 'small')}>작게</button>
                   <button onClick={() => { setMeaningSize('medium'); saveSettings('meaningSize', 'medium'); }} style={getSegmentBtnStyle(meaningSize === 'medium')}>보통</button>
                   <button onClick={() => { setMeaningSize('large'); saveSettings('meaningSize', 'large'); }} style={getSegmentBtnStyle(meaningSize === 'large')}>크게</button>
@@ -319,8 +320,8 @@ export default function TestMode() {
         )}
       </AnimatePresence>
 
-      <div style={{ height: '400px', perspective: '1200px', cursor: 'pointer' }} onClick={() => setIsFlipped(!isFlipped)}>
-        <motion.div animate={{ rotateY: isFlipped ? 180 : 0 }} transition={{ duration: 0.6, type: 'spring', stiffness: 260, damping: 20 }} style={{ width: '100%', height: '100%', position: 'relative', transformStyle: 'preserve-3d' }}>
+      <div className="flashcard-container" onClick={() => setIsFlipped(!isFlipped)}>
+        <motion.div className="flashcard-inner" animate={{ rotateY: isFlipped ? 180 : 0 }} transition={{ duration: 0.6, type: 'spring', stiffness: 260, damping: 20 }}>
           {(() => {
             const frontText = direction === 'word' ? currentCard.word : currentCard.meaning
             const backText = direction === 'word' ? currentCard.meaning : currentCard.word
@@ -328,14 +329,14 @@ export default function TestMode() {
             return (
               <>
                 {/* 카드 앞면 */}
-                <div className="card" style={{ position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center', textAlign: 'center', border: '2px solid var(--glass-border)', padding: '2rem' }}>
+                <div className="card flashcard-front">
                    <div className="legible-word" style={{ 
                      fontSize: getCalculatedSize(frontText.length > 20 ? '1.8rem' : '2.8rem', wordSize),
                      transition: 'font-size 0.2s' 
                    }}>{frontText}</div>
                 </div>
                 {/* 카드 뒷면 */}
-                <div className="card" style={{ position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center', textAlign: 'center', color: '#e2e8f0', transform: 'rotateY(180deg)', border: '3px solid var(--accent-color)', padding: '2rem', boxShadow: 'inset 0 0 40px rgba(99, 102, 241, 0.1)' }}>
+                <div className="card flashcard-back">
                    <div className="legible-word" style={{ 
                      fontSize: getCalculatedSize(backText.length > 30 ? '1.5rem' : '2.2rem', meaningSize),
                      transition: 'font-size 0.2s' 
@@ -347,16 +348,18 @@ export default function TestMode() {
         </motion.div>
       </div>
 
-      <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+      <div className="hint-control-section">
         {currentCard.image_url && (
           <>
-            <button onClick={() => setShowHint(!showHint)} style={{ background: 'var(--glass)', color: 'var(--text-secondary)', border: '1px solid var(--glass-border)', padding: '0.4rem 1rem', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+            <button onClick={(e) => { e.stopPropagation(); setShowHint(!showHint); }} className="hint-toggle-btn">
               {showHint ? <><EyeOff size={14} /> 힌트 가리기</> : <><Eye size={14} /> 첨부 이미지 확인</>}
             </button>
             <AnimatePresence>
               {showHint && (
-                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} style={{ width: '100%', maxWidth: '350px', background: 'var(--glass)', padding: '0.6rem', borderRadius: '16px', border: '1px solid var(--glass-border)', cursor: 'zoom-in' }} onClick={() => setZoomedImage(currentCard.image_url)}>
-                  <img src={currentCard.image_url} alt="hint" style={{ width: '100%', borderRadius: '12px', maxHeight: '250px', objectFit: 'contain' }} />
+                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="hint-image-wrapper">
+                  <div onClick={(e) => { e.stopPropagation(); setZoomedImage(currentCard.image_url); }} className="hint-image-container btn-hover">
+                    <img src={currentCard.image_url} alt="hint" className="hint-image" />
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -366,21 +369,16 @@ export default function TestMode() {
 
       <AnimatePresence>
         {isFlipped && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} style={{ marginTop: '2.5rem', display: 'flex', gap: '1.5rem', justifyContent: 'center' }}>
-            <button className="card btn-hover" onClick={(e) => { e.stopPropagation(); handleResult(false); }} style={{ color: 'var(--danger)', padding: '1rem 2rem', fontWeight: '700', cursor: 'pointer' }}>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="test-actions-section">
+            <button className="card test-dontknow-btn btn-hover" onClick={(e) => { e.stopPropagation(); handleResult(false); }}>
               <XCircle size={22} /> 몰라요
             </button>
-            <button className="btn-primary" onClick={(e) => { e.stopPropagation(); handleResult(true); }} style={{ background: 'var(--success)', padding: '1rem 2rem', fontWeight: '700', cursor: 'pointer' }}>
+            <button className="btn-primary test-know-btn" onClick={(e) => { e.stopPropagation(); handleResult(true); }}>
               <CheckCircle size={22} /> 알아요!
             </button>
           </motion.div>
         )}
       </AnimatePresence>
-
-      <style>{`
-        .setting-label-mini { font-size: 0.7rem; color: var(--text-secondary); fontWeight: 700; textTransform: uppercase; }
-        .setting-segment-mini { display: flex; background: rgba(0,0,0,0.3); padding: 3px; borderRadius: 10px; border: 1px solid var(--glass-border); }
-      `}</style>
     </div>
   )
 }
