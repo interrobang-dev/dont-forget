@@ -436,22 +436,22 @@ export default function Dashboard({ session }) {
             {sets.map((set) => (
               <div key={set.id} className="card dashboard-item">
                 {/* [정보 + 관리] 상단 바 */}
-                <div style={{ width: '100%' }}>
+                <div style={{ width: '100%', minWidth: 0, overflow: 'hidden' }}>
                   {/* 첫 번째 줄: 제목(아이콘 포함) + 더보기 메뉴 배치 */}
-                  <div className="card-header-row">
-                    <h3 
-                      className="card-title-text"
-                      title={set.title}
-                    >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', width: '100%', minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0, overflow: 'hidden' }}>
                       {set.is_public ? (
                         <Globe size={16} color="var(--accent-color)" style={{ flexShrink: 0 }} />
                       ) : (
                         <Lock size={16} color="var(--text-secondary)" style={{ flexShrink: 0, opacity: 0.7 }} />
                       )}
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
+                      <h3 
+                        style={{ fontSize: '1.4rem', fontWeight: '800', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}
+                        title={set.title}
+                      >
                         {set.title}
-                      </span>
-                    </h3>
+                      </h3>
+                    </div>
                     
                     {/* 더보기 (⋮) 관리 메뉴 버튼 */}
                     <div style={{ position: 'relative', display: 'inline-block' }}>
@@ -713,9 +713,9 @@ export default function Dashboard({ session }) {
             {sharedSets.map((set) => (
               <div key={set.id} className="card dashboard-item">
                 {/* [정보 + 관리] 상단 바 */}
-                <div style={{ width: '100%' }}>
+                <div style={{ width: '100%', minWidth: 0, overflow: 'hidden' }}>
                   {/* 첫 번째 줄: 제목 및 가져오기 버튼 */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '0.8rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '0.8rem', width: '100%', minWidth: 0 }}>
                     <h3 style={{ fontSize: '1.4rem', fontWeight: '800', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 0, flex: 1, minWidth: 0 }}>
                       {set.title}
                     </h3>
