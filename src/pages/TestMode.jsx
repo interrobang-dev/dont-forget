@@ -242,7 +242,7 @@ export default function TestMode() {
         <p style={{ fontSize: '1.8rem', margin: '2rem 0' }}>{correctCount} / {cards.length} 정답</p>
         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
           <button className="btn-primary" onClick={handleRestart}><RefreshCcw size={18} /> 다시 도전</button>
-          <Link to="/" className="card" style={{ textDecoration: 'none', color: 'white' }}>대시보드</Link>
+          <Link to="/" className="card" style={{ textDecoration: 'none', color: 'white' }}>세트 목록</Link>
         </div>
       </div>
     </div>
