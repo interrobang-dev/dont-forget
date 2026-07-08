@@ -348,54 +348,54 @@ export default function StudyMode() {
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} style={{ overflow: 'hidden', marginBottom: '1.5rem' }}>
             <div className="card study-settings-panel">
               {isOwner && (
-                <div className="setting-column">
-                  <span className="setting-label">대상 단어 범위</span>
-                  <div className="setting-segment">
+                <div className="settings-row">
+                  <span className="settings-label">대상 단어 범위</span>
+                  <div className="setting-segment" style={{ width: '100%', maxWidth: '300px' }}>
                     <button onClick={() => handleToggleExcludeMemorized(false)} style={getSegmentBtnStyle(excludeMemorized === false)}>전체</button>
-                    <button onClick={() => handleToggleExcludeMemorized(true)} style={getSegmentStyle(excludeMemorized === true)}>암기 제외</button>
+                    <button onClick={() => handleToggleExcludeMemorized(true)} style={getSegmentBtnStyle(excludeMemorized === true)}>암기 제외</button>
                   </div>
                 </div>
               )}
-              <div className="setting-column">
-                <span className="setting-label">카드 방향</span>
-                <div className="setting-segment">
+              <div className="settings-row">
+                <span className="settings-label">카드 방향</span>
+                <div className="setting-segment" style={{ width: '100%', maxWidth: '300px' }}>
                   <button onClick={() => { setDirection('word'); saveSettings('direction', 'word'); }} style={getSegmentBtnStyle(direction === 'word')}>단어</button>
                   <button onClick={() => { setDirection('meaning'); saveSettings('direction', 'meaning'); }} style={getSegmentBtnStyle(direction === 'meaning')}>뜻</button>
                 </div>
               </div>
-              <div className="setting-column">
-                <span className="setting-label">진행 순서</span>
-                <div className="setting-segment">
+              <div className="settings-row">
+                <span className="settings-label">진행 순서</span>
+                <div className="setting-segment" style={{ width: '100%', maxWidth: '300px' }}>
                   <button onClick={() => { setIsRandom(false); saveSettings('isRandom', false); }} style={getSegmentBtnStyle(!isRandom)}>순차</button>
                   <button onClick={() => { setIsRandom(true); saveSettings('isRandom', true); }} style={getSegmentBtnStyle(isRandom)}>무작위</button>
                 </div>
               </div>
-              <div className="setting-column">
-                <span className="setting-label">단어 크기</span>
-                <div className="setting-segment">
+              <div className="settings-row">
+                <span className="settings-label">단어 크기</span>
+                <div className="setting-segment" style={{ width: '100%', maxWidth: '300px' }}>
                   <button onClick={() => { setWordSize('small'); saveSettings('wordSize', 'small'); }} style={getSegmentBtnStyle(wordSize === 'small')}>작게</button>
                   <button onClick={() => { setWordSize('medium'); saveSettings('wordSize', 'medium'); }} style={getSegmentBtnStyle(wordSize === 'medium')}>보통</button>
-                  <button onClick={() => { setWordSize('large'); saveSettings('wordSize', 'large'); }} style={getSegmentStyle(wordSize === 'large')}>크게</button>
+                  <button onClick={() => { setWordSize('large'); saveSettings('wordSize', 'large'); }} style={getSegmentBtnStyle(wordSize === 'large')}>크게</button>
                 </div>
               </div>
-              <div className="setting-column">
-                <span className="setting-label">뜻 크기</span>
-                <div className="setting-segment">
+              <div className="settings-row">
+                <span className="settings-label">뜻 크기</span>
+                <div className="setting-segment" style={{ width: '100%', maxWidth: '300px' }}>
                   <button onClick={() => { setMeaningSize('small'); saveSettings('meaningSize', 'small'); }} style={getSegmentBtnStyle(meaningSize === 'small')}>작게</button>
                   <button onClick={() => { setMeaningSize('medium'); saveSettings('meaningSize', 'medium'); }} style={getSegmentBtnStyle(meaningSize === 'medium')}>보통</button>
                   <button onClick={() => { setMeaningSize('large'); saveSettings('meaningSize', 'large'); }} style={getSegmentBtnStyle(meaningSize === 'large')}>크게</button>
                 </div>
               </div>
               {isOwner && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', alignItems: 'center', justifyContent: 'center' }}>
-                  <span className="setting-label">학습 초기화</span>
+                <div className="settings-row" style={{ marginTop: '0.4rem', height: 'auto' }}>
+                  <span className="settings-label">학습 초기화</span>
                   <button
                     type="button"
                     onClick={handleResetAllMemorized}
                     className="btn-primary"
                     style={{
-                      padding: '0.5rem 1.2rem',
-                      fontSize: '0.8rem',
+                      padding: '0.4rem 1rem',
+                      fontSize: '0.78rem',
                       fontWeight: '800',
                       borderRadius: '8px',
                       cursor: 'pointer',
@@ -404,15 +404,17 @@ export default function StudyMode() {
                       color: 'var(--text-primary)',
                       display: 'flex',
                       alignItems: 'center',
+                      justifyContent: 'center',
                       gap: '0.4rem',
-                      height: '32px',
+                      height: '28px',
                       fontFamily: 'inherit',
-                      filter: 'none',
+                      width: '100%',
+                      maxWidth: '300px',
                       transition: 'all 0.2s'
                     }}
                     title="모든 단어를 '학습 중'으로 되돌립니다"
                   >
-                    <RotateCcw size={14} /> 전부 학습 중으로 초기화
+                    <RotateCcw size={13} /> 전부 학습 중으로 초기화
                   </button>
                 </div>
               )}

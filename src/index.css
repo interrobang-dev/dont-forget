@@ -826,13 +826,21 @@ textarea:focus, input[type="text"]:focus, input[type="email"]:focus, input[type=
 .segment-control-wrapper {
   display: flex;
   width: 100%;
-  max-width: 160px;
+  max-width: 220px;
   flex-shrink: 1;
   height: 100%;
   padding: 2px;
   box-sizing: border-box;
   align-items: stretch;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
+
+.segment-control button {
+  flex: 1;
+}
+
 
 /* 학습/테스트 액션 그룹 */
 .action-group {
@@ -1204,18 +1212,15 @@ textarea:focus, input[type="text"]:focus, input[type="email"]:focus, input[type=
   font-weight: 600;
 }
 .study-settings-panel {
-  background: rgba(255, 255, 255, 0.03) !important;
-  padding: 1.5rem;
-  display: flex;
-  gap: 2rem;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-.setting-column {
+  background: rgba(0, 0, 0, 0.18) !important;
+  padding: 0.8rem 1.2rem;
+  border-radius: 12px;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
-  align-items: center;
+  gap: 0.5rem;
+  max-width: 500px;
+  margin: 0 auto 1.5rem auto;
+  border: 1px solid var(--glass-border) !important;
 }
 
 /* 플래시카드(단어 카드) 플립 구조 */
@@ -1306,15 +1311,37 @@ textarea:focus, input[type="text"]:focus, input[type="email"]:focus, input[type=
 
 /* 액션/내비게이션 영역 */
 .study-actions-section {
-  margin-top: 2.5rem;
+  margin-top: 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
   align-items: center;
 }
 .study-memorize-segment {
+  display: flex;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 3px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
   max-width: 280px;
   width: 100%;
+  box-sizing: border-box;
+  align-items: stretch;
+}
+
+.setting-segment {
+  display: flex;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  align-items: stretch;
+  min-height: 28px;
+  box-sizing: border-box;
+}
+
+.setting-segment button {
+  flex: 1;
 }
 .study-nav-buttons {
   display: flex;

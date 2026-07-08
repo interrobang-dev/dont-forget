@@ -436,7 +436,7 @@ export default function Dashboard({ session }) {
             {sets.map((set) => (
               <div key={set.id} className="card dashboard-item">
                 {/* [정보 + 관리] 상단 바 */}
-                <div style={{ width: '100%', minWidth: 0, overflow: 'hidden' }}>
+                <div style={{ width: '100%', minWidth: 0 }}>
                   {/* 첫 번째 줄: 제목(아이콘 포함) + 더보기 메뉴 배치 */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', width: '100%', minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0, overflow: 'hidden' }}>
@@ -905,7 +905,7 @@ export default function Dashboard({ session }) {
                 {/* 공개 여부 설정 세그먼트 컨트롤 */}
                 <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
                   <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: '700' }}>공개 설정</span>
-                  <div className="segment-control" style={{ maxWidth: '160px', flex: '1' }}>
+                  <div className="segment-control segment-control-wrapper" style={{ maxWidth: '220px', flex: '1', height: '28px' }}>
                     <button 
                       type="button" 
                       onClick={() => setNewSetIsPublic(false)} 
@@ -967,6 +967,7 @@ function getSegmentStyle(active) {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    whiteSpace: 'nowrap'
+    whiteSpace: 'nowrap',
+    flex: 1
   }
 }
