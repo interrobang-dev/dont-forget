@@ -18,57 +18,109 @@ export default function TestMode() {
   
   const [showSettings, setShowSettings] = useState(false)
   
-  // 단어와 뜻 크기 개별 관리
+  // 설정 및 권한 상태
+  const [isOwner, setIsOwner] = useState(true)
   const [wordSize, setWordSize] = useState('medium')
   const [meaningSize, setMeaningSize] = useState('medium')
   const [direction, setDirection] = useState('word')
+  const [isRandom, setIsRandom] = useState(false)
 
   // 초기 설정 및 테스트 카드 로드
   useEffect(() => {
     loadTestSession()
   }, [id])
 
-  // 설정 저장 (Supabase API 실시간 적재)
-  const saveSettings = async (key, value) => {
-    const dbFieldMap = {
-      wordSize: 'word_size',
-      meaningSize: 'meaning_size'
+  // 진행 순서 변경 시 카드 정렬 및 상태 리셋
+  useEffect(() => {
+    if (cards.length === 0) return
+    let finalCards = [...cards]
+    if (isRandom) {
+      finalCards = finalCards.sort(() => Math.random() - 0.5)
+    } else {
+      finalCards = finalCards.sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
     }
-    const dbField = dbFieldMap[key]
-    if (!dbField) return
+    setCards(finalCards)
+    setCurrentIndex(0)
+    setIsFlipped(false)
+  }, [isRandom])
 
-    try {
-      await supabase
-        .from('word_sets')
-        .update({ [dbField]: value })
-        .eq('id', id)
-    } catch (e) {
-      console.error('설정 저장 실패:', e.message)
+  // 설정 저장 (소유주인 경우에만 Supabase API 실시간 적재, 타인은 로컬만 적용)
+  const saveSettings = async (key, value) => {
+    const savedAll = localStorage.getItem('quick_test_settings')
+    const allSettings = savedAll ? JSON.parse(savedAll) : {}
+    const currentSettings = allSettings[id] || {}
+    allSettings[id] = { ...currentSettings, [key]: value }
+    localStorage.setItem('quick_test_settings', JSON.stringify(allSettings))
+
+    if (isOwner) {
+      const dbFieldMap = {
+        wordSize: 'word_size',
+        meaningSize: 'meaning_size',
+        direction: 'study_direction',
+        isRandom: 'study_order'
+      }
+      const dbField = dbFieldMap[key]
+      if (!dbField) return
+
+      const dbValue = key === 'isRandom' ? (value ? 'rand' : 'seq') : value;
+
+      try {
+        await supabase
+          .from('word_sets')
+          .update({ [dbField]: dbValue })
+          .eq('id', id)
+      } catch (e) {
+        console.error('설정 저장 실패:', e.message)
+      }
     }
   }
 
   const loadTestSession = async () => {
     setLoading(true)
     try {
+      // 0. 사용자 정보 가져오기
+      const { data: { user } } = await supabase.auth.getUser()
+
       // 1. Supabase에서 단어 세트의 5종 공통 진행 방식 설정을 API 조회
       const { data: wordSet, error: setError } = await supabase
         .from('word_sets')
-        .select('study_direction, study_order, word_size, meaning_size, exclude_memorized')
+        .select('user_id, study_direction, study_order, word_size, meaning_size, exclude_memorized')
         .eq('id', id)
         .single()
       
       if (setError) throw setError
+
+      // 소유주 판별
+      const owner = user && wordSet && wordSet.user_id === user.id
+      setIsOwner(!!owner)
       
-      const dir = wordSet.study_direction || 'word'
-      const ord = wordSet.study_order || 'seq'
-      const wSz = wordSet.word_size || 'medium'
-      const mSz = wordSet.meaning_size || 'medium'
-      const exMem = wordSet.exclude_memorized || false
+      let dir = wordSet.study_direction || 'word'
+      let ord = wordSet.study_order || 'seq'
+      let wSz = wordSet.word_size || 'medium'
+      let mSz = wordSet.meaning_size || 'medium'
+
+      // 만약 타인 세트라면 localStorage의 백업 설정을 오버라이드하여 유지 보장
+      if (!owner) {
+        const savedAll = localStorage.getItem('quick_test_settings')
+        const allSettings = savedAll ? JSON.parse(savedAll) : {}
+        const localSettings = allSettings[id] || {}
+
+        if (localSettings.direction) dir = localSettings.direction
+        if (localSettings.isRandom !== undefined) {
+          ord = localSettings.isRandom ? 'rand' : 'seq'
+        }
+        if (localSettings.wordSize) wSz = localSettings.wordSize
+        if (localSettings.meaningSize) mSz = localSettings.meaningSize
+      }
+
+      // 다른 사람 세트인 경우에는 암기 제외를 무조건 false로 고정
+      const exMem = owner ? (wordSet.exclude_memorized || false) : false
       
       // 상태 설정
       setDirection(dir)
       setWordSize(wSz)
       setMeaningSize(mSz)
+      setIsRandom(ord === 'rand')
       
       // 2. 설정된 exclude_memorized 여부에 따라 카드 데이터를 Supabase에서 분기 쿼리
       let query = supabase
@@ -103,10 +155,12 @@ export default function TestMode() {
   const handleResult = async (isCorrect) => {
     if (isCorrect) {
       setCorrectCount(prev => prev + 1)
-      await supabase
-        .from('cards')
-        .update({ is_memorized: true })
-        .eq('id', cards[currentIndex].id)
+      if (isOwner) {
+        await supabase
+          .from('cards')
+          .update({ is_memorized: true })
+          .eq('id', cards[currentIndex].id)
+      }
     }
 
     if (currentIndex + 1 < cards.length) {
@@ -118,18 +172,20 @@ export default function TestMode() {
     } else {
       const finalScore = correctCount + (isCorrect ? 1 : 0)
       
-      // 1. Supabase Cloud DB에 테스트 이력 실시간 저장
-      supabase
-        .from('word_sets')
-        .update({
-          last_test_date: new Date().toISOString(),
-          last_test_score: finalScore,
-          last_test_total: cards.length
-        })
-        .eq('id', id)
-        .then(({ error }) => {
-          if (error) console.error('테스트 이력 Supabase 저장 실패:', error.message)
-        })
+      // 1. Supabase Cloud DB에 테스트 이력 실시간 저장 (소유주인 경우에만)
+      if (isOwner) {
+        supabase
+          .from('word_sets')
+          .update({
+            last_test_date: new Date().toISOString(),
+            last_test_score: finalScore,
+            last_test_total: cards.length
+          })
+          .eq('id', id)
+          .then(({ error }) => {
+            if (error) console.error('테스트 이력 Supabase 저장 실패:', error.message)
+          })
+      }
 
       // 2. 예비용 로컬 스토리지 적재
       localStorage.setItem(`last_test_${id}`, JSON.stringify({
@@ -228,6 +284,20 @@ export default function TestMode() {
         {showSettings && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} style={{ overflow: 'hidden', marginBottom: '1.5rem' }}>
             <div className="card" style={{ background: 'rgba(255,255,255,0.03)', padding: '1.5rem', display: 'flex', gap: '1.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', alignItems: 'center' }}>
+                <span className="setting-label-mini">카드 방향</span>
+                <div className="setting-segment-mini">
+                  <button onClick={() => { setDirection('word'); saveSettings('direction', 'word'); }} style={getSegmentBtnStyle(direction === 'word')}>단어</button>
+                  <button onClick={() => { setDirection('meaning'); saveSettings('direction', 'meaning'); }} style={getSegmentBtnStyle(direction === 'meaning')}>뜻</button>
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', alignItems: 'center' }}>
+                <span className="setting-label-mini">진행 순서</span>
+                <div className="setting-segment-mini">
+                  <button onClick={() => { setIsRandom(false); saveSettings('isRandom', false); }} style={getSegmentBtnStyle(!isRandom)}>순차</button>
+                  <button onClick={() => { setIsRandom(true); saveSettings('isRandom', true); }} style={getSegmentBtnStyle(isRandom)}>무작위</button>
+                </div>
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', alignItems: 'center' }}>
                 <span className="setting-label-mini">단어 크기</span>
                 <div className="setting-segment-mini">

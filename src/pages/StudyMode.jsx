@@ -23,6 +23,7 @@ export default function StudyMode() {
   const queryParams = new URLSearchParams(location.search)
   
   // 세트별 설정 로드/저장 로직
+  const [isOwner, setIsOwner] = useState(true)
   const [direction, setDirection] = useState('word')
   const [isRandom, setIsRandom] = useState(false)
   const [wordSize, setWordSize] = useState('medium')
@@ -34,8 +35,8 @@ export default function StudyMode() {
     loadStudySession()
   }, [id])
 
-  // 설정 변경 시 localStorage 저장 (기존 백업 호환)
-  const saveSettings = (key, value) => {
+  // 설정 변경 시 localStorage 저장 및 소유주인 경우에만 Supabase 저장
+  const saveSettings = async (key, value) => {
     const savedAll = localStorage.getItem('quick_study_settings')
     const allSettings = savedAll ? JSON.parse(savedAll) : {}
     
@@ -51,10 +52,33 @@ export default function StudyMode() {
 
     allSettings[id] = { ...currentMySettings, [finalKey]: finalValue }
     localStorage.setItem('quick_study_settings', JSON.stringify(allSettings))
+
+    // 소유주인 경우에만 클라우드 DB에 동기화
+    if (isOwner) {
+      const dbFieldMap = {
+        direction: 'study_direction',
+        isRandom: 'study_order',
+        wordSize: 'word_size',
+        meaningSize: 'meaning_size'
+      }
+      const dbField = dbFieldMap[key]
+      if (dbField) {
+        const val = key === 'isRandom' ? (value ? 'rand' : 'seq') : value;
+        try {
+          await supabase
+            .from('word_sets')
+            .update({ [dbField]: val })
+            .eq('id', id)
+        } catch (e) {
+          console.error('클라우드 설정 저장 실패:', e.message)
+        }
+      }
+    }
   }
 
   // 대상 단어 범위 토글 및 실시간 카드 필터링 재쿼리 핸들러
   const handleToggleExcludeMemorized = async (value) => {
+    if (!isOwner) return // 타인 세트일 경우 차단
     setExcludeMemorized(value)
     
     // 1. Supabase Cloud DB 실시간 저장
@@ -113,20 +137,41 @@ export default function StudyMode() {
   const loadStudySession = async () => {
     setLoading(true)
     try {
+      // 0. 사용자 정보 가져오기
+      const { data: { user } } = await supabase.auth.getUser()
+
       // 1. Supabase에서 단어 세트의 5종 공통 진행 방식 설정을 API 조회
       const { data: wordSet, error: setError } = await supabase
         .from('word_sets')
-        .select('study_direction, study_order, word_size, meaning_size, exclude_memorized')
+        .select('user_id, study_direction, study_order, word_size, meaning_size, exclude_memorized')
         .eq('id', id)
         .single()
       
       if (setError) throw setError
       
-      const dir = wordSet.study_direction || 'word'
-      const ord = wordSet.study_order || 'seq'
-      const wSz = wordSet.word_size || 'medium'
-      const mSz = wordSet.meaning_size || 'medium'
-      const exMem = wordSet.exclude_memorized || false
+      // 소유주 여부 판단
+      const owner = user && wordSet && wordSet.user_id === user.id
+      setIsOwner(!!owner)
+
+      let dir = wordSet.study_direction || 'word'
+      let ord = wordSet.study_order || 'seq'
+      let wSz = wordSet.word_size || 'medium'
+      let mSz = wordSet.meaning_size || 'medium'
+      
+      // 만약 타인 세트라면 localStorage의 백업 설정을 오버라이드하여 유지 보장
+      if (!owner) {
+        const savedAll = localStorage.getItem('quick_study_settings')
+        const allSettings = savedAll ? JSON.parse(savedAll) : {}
+        const localSettings = allSettings[id] || {}
+        
+        if (localSettings.direction) dir = localSettings.direction
+        if (localSettings.order) ord = localSettings.order
+        if (localSettings.wordSize) wSz = localSettings.wordSize
+        if (localSettings.meaningSize) mSz = localSettings.meaningSize
+      }
+
+      // 다른 사람 세트인 경우에는 암기 제외를 무조건 false로 고정
+      const exMem = owner ? (wordSet.exclude_memorized || false) : false
       
       // 리액트 로컬 상태 설정
       setDirection(dir)
@@ -207,6 +252,7 @@ export default function StudyMode() {
   }
 
   const toggleMemorized = async (cardId, currentStatus) => {
+    if (!isOwner) return // 타인 세트일 경우 스킵
     try {
       const { error } = await supabase
         .from('cards')
@@ -223,6 +269,7 @@ export default function StudyMode() {
   }
 
   const handleResetAllMemorized = async () => {
+    if (!isOwner) return // 타인 세트일 경우 스킵
     if (!confirm("이 세트의 모든 단어를 '학습 중' 상태로 초기화하시겠습니까?")) return
     setLoading(true)
     try {
@@ -299,13 +346,15 @@ export default function StudyMode() {
         {showSettings && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} style={{ overflow: 'hidden', marginBottom: '1.5rem' }}>
             <div className="card" style={{ background: 'rgba(255,255,255,0.03)', padding: '1.5rem', display: 'flex', gap: '2rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', alignItems: 'center' }}>
-                <span className="setting-label">대상 단어 범위</span>
-                <div className="setting-segment">
-                  <button onClick={() => handleToggleExcludeMemorized(false)} style={getSegmentBtnStyle(excludeMemorized === false)}>전체</button>
-                  <button onClick={() => handleToggleExcludeMemorized(true)} style={getSegmentBtnStyle(excludeMemorized === true)}>암기 제외</button>
+              {isOwner && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', alignItems: 'center' }}>
+                  <span className="setting-label">대상 단어 범위</span>
+                  <div className="setting-segment">
+                    <button onClick={() => handleToggleExcludeMemorized(false)} style={getSegmentBtnStyle(excludeMemorized === false)}>전체</button>
+                    <button onClick={() => handleToggleExcludeMemorized(true)} style={getSegmentBtnStyle(excludeMemorized === true)}>암기 제외</button>
+                  </div>
                 </div>
-              </div>
+              )}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', alignItems: 'center' }}>
                 <span className="setting-label">카드 방향</span>
                 <div className="setting-segment">
@@ -336,34 +385,36 @@ export default function StudyMode() {
                   <button onClick={() => { setMeaningSize('large'); saveSettings('meaningSize', 'large'); }} style={getSegmentBtnStyle(meaningSize === 'large')}>크게</button>
                 </div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', alignItems: 'center', justifyContent: 'center' }}>
-                <span className="setting-label">학습 초기화</span>
-                <button
-                  type="button"
-                  onClick={handleResetAllMemorized}
-                  className="btn-primary"
-                  style={{
-                    padding: '0.5rem 1.2rem',
-                    fontSize: '0.8rem',
-                    fontWeight: '800',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    background: 'rgba(153, 27, 27, 0.12)',
-                    border: '1px solid var(--accent-color)',
-                    color: 'var(--text-primary)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                    height: '32px',
-                    fontFamily: 'inherit',
-                    filter: 'none',
-                    transition: 'all 0.2s'
-                  }}
-                  title="모든 단어를 '학습 중'으로 되돌립니다"
-                >
-                  <RotateCcw size={14} /> 전부 학습 중으로 초기화
-                </button>
-              </div>
+              {isOwner && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', alignItems: 'center', justifyContent: 'center' }}>
+                  <span className="setting-label">학습 초기화</span>
+                  <button
+                    type="button"
+                    onClick={handleResetAllMemorized}
+                    className="btn-primary"
+                    style={{
+                      padding: '0.5rem 1.2rem',
+                      fontSize: '0.8rem',
+                      fontWeight: '800',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      background: 'rgba(153, 27, 27, 0.12)',
+                      border: '1px solid var(--accent-color)',
+                      color: 'var(--text-primary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      height: '32px',
+                      fontFamily: 'inherit',
+                      filter: 'none',
+                      transition: 'all 0.2s'
+                    }}
+                    title="모든 단어를 '학습 중'으로 되돌립니다"
+                  >
+                    <RotateCcw size={14} /> 전부 학습 중으로 초기화
+                  </button>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
@@ -422,66 +473,68 @@ export default function StudyMode() {
           </div>
 
           <div style={{ marginTop: '2.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'center' }}>
-            {/* 암기 여부 설정 세그먼트 컨트롤 */}
-            <div 
-              className="setting-segment" 
-              style={{ 
-                maxWidth: '280px', 
-                width: '100%', 
-                display: 'flex', 
-                background: 'rgba(0, 0, 0, 0.3)', 
-                padding: '3px', 
-                borderRadius: '10px', 
-                border: '1px solid var(--glass-border)',
-                userSelect: 'none'
-              }} 
-              onClick={(e) => e.stopPropagation()}
-            >
-              <button 
-                type="button"
-                onClick={() => {
-                  if (currentCard.is_memorized) {
-                    toggleMemorized(currentCard.id, true)
-                  }
+            {/* 암기 여부 설정 세그먼트 컨트롤 - 소유주인 경우에만 렌더링 */}
+            {isOwner && (
+              <div 
+                className="setting-segment" 
+                style={{ 
+                  maxWidth: '280px', 
+                  width: '100%', 
+                  display: 'flex', 
+                  background: 'rgba(0, 0, 0, 0.3)', 
+                  padding: '3px', 
+                  borderRadius: '10px', 
+                  border: '1px solid var(--glass-border)',
+                  userSelect: 'none'
                 }} 
-                style={{
-                  ...getSegmentBtnStyle(!currentCard.is_memorized),
-                  flex: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.4rem',
-                  padding: '0.6rem 1rem',
-                  fontFamily: 'inherit'
-                }}
+                onClick={(e) => e.stopPropagation()}
               >
-                <BookOpen size={16} />
-                <span>학습 중</span>
-              </button>
-              <button 
-                type="button"
-                onClick={() => {
-                  if (!currentCard.is_memorized) {
-                    toggleMemorized(currentCard.id, false)
-                  }
-                }} 
-                style={{
-                  ...getSegmentBtnStyle(currentCard.is_memorized),
-                  flex: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.4rem',
-                  padding: '0.6rem 1rem',
-                  background: currentCard.is_memorized ? 'var(--success)' : 'transparent',
-                  boxShadow: currentCard.is_memorized ? '0 2px 8px rgba(21, 128, 61, 0.3)' : 'none',
-                  fontFamily: 'inherit'
-                }}
-              >
-                <CheckCircle2 size={16} />
-                <span>암기 완료</span>
-              </button>
-            </div>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    if (currentCard.is_memorized) {
+                      toggleMemorized(currentCard.id, true)
+                    }
+                  }} 
+                  style={{
+                    ...getSegmentBtnStyle(!currentCard.is_memorized),
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                    padding: '0.6rem 1rem',
+                    fontFamily: 'inherit'
+                  }}
+                >
+                  <BookOpen size={16} />
+                  <span>학습 중</span>
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    if (!currentCard.is_memorized) {
+                      toggleMemorized(currentCard.id, false)
+                    }
+                  }} 
+                  style={{
+                    ...getSegmentBtnStyle(currentCard.is_memorized),
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                    padding: '0.6rem 1rem',
+                    background: currentCard.is_memorized ? 'var(--success)' : 'transparent',
+                    boxShadow: currentCard.is_memorized ? '0 2px 8px rgba(21, 128, 61, 0.3)' : 'none',
+                    fontFamily: 'inherit'
+                  }}
+                >
+                  <CheckCircle2 size={16} />
+                  <span>암기 완료</span>
+                </button>
+              </div>
+            )}
             <div style={{ display: 'flex', gap: '1rem', width: '100%', justifyContent: 'center' }}>
               <button className="card btn-hover" onClick={(e) => { e.stopPropagation(); handlePrev(); }} style={{ padding: '0.8rem 2.5rem', cursor: 'pointer' }}><ChevronLeft size={24} /></button>
               <button className="card btn-hover" onClick={(e) => { e.stopPropagation(); handleNext(); }} style={{ padding: '0.8rem 2.5rem', cursor: 'pointer' }}><ChevronRight size={24} /></button>
