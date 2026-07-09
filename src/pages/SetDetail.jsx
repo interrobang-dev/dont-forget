@@ -3,9 +3,9 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { motion, Reorder, AnimatePresence } from 'framer-motion'
 import { 
-  ArrowLeft, Plus, Trash2, Save, GripVertical, 
+  ArrowLeft, Plus, Trash2, Save, 
   Image as ImageIcon, X, Loader2, BookOpen, Clock, Edit2,
-  Globe, Lock, CheckCircle2
+  Globe, Lock, CheckCircle2, ChevronUp, ChevronDown
 } from 'lucide-react'
 
 export default function SetDetail() {
@@ -227,13 +227,54 @@ export default function SetDetail() {
     }
   }, [])
 
-  const handleReorder = useCallback(async (newOrder) => {
-    setCards(newOrder)
-    const updates = newOrder.map((card, index) => ({ id: card.id, display_order: index }))
-    for (const update of updates) {
-      await supabase.from('cards').update({ display_order: update.display_order }).eq('id', update.id)
+  const handleMoveCard = useCallback(async (index, direction) => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1
+    if (targetIndex < 0 || targetIndex >= cards.length) return
+    
+    const newCards = [...cards]
+    const temp = newCards[index]
+    newCards[index] = newCards[targetIndex]
+    newCards[targetIndex] = temp
+    
+    // display_order 스왑
+    const orderA = cards[index].display_order
+    const orderB = cards[targetIndex].display_order
+    newCards[index].display_order = orderB
+    newCards[targetIndex].display_order = orderA
+    
+    setCards(newCards)
+    
+    try {
+      await Promise.all([
+        supabase.from('cards').update({ display_order: orderB }).eq('id', newCards[index].id),
+        supabase.from('cards').update({ display_order: orderA }).eq('id', newCards[targetIndex].id)
+      ])
+    } catch (e) {
+      console.error('순서 변경 DB 업데이트 실패:', e.message)
     }
-  }, [])
+  }, [cards])
+
+  const handleMoveTo = useCallback(async (currentIndex, targetNumber) => {
+    const targetIndex = Math.max(0, Math.min(cards.length - 1, targetNumber - 1))
+    if (currentIndex === targetIndex) return
+    
+    const newCards = [...cards]
+    const [movedCard] = newCards.splice(currentIndex, 1)
+    newCards.splice(targetIndex, 0, movedCard)
+    
+    // 전체 display_order 재정렬
+    const updated = newCards.map((card, idx) => ({ ...card, display_order: idx }))
+    setCards(updated)
+    
+    try {
+      const updates = updated.map((card, idx) => 
+        supabase.from('cards').update({ display_order: idx }).eq('id', card.id)
+      )
+      await Promise.all(updates)
+    } catch (e) {
+      console.error('순서 이동 DB 업데이트 실패:', e.message)
+    }
+  }, [cards])
 
   if (loading) return <div className="container" style={{ textAlign: 'center', padding: '5rem' }}>로딩 중...</div>
 
@@ -379,45 +420,50 @@ export default function SetDetail() {
       </section>
 
       {/* 단어 리스트 — gap: 0, 카드 사이 간격은 insert-separator 자체가 담당 */}
-      <Reorder.Group axis="y" values={cards} onReorder={handleReorder} className="card-list-group">
-        {cards.map((card, idx) => (
-          <React.Fragment key={card.id}>
-            {/* 인라인 삽입 폼: 해당 인덱스 위에 펼쳐짐 */}
-            {insertingIndex === idx && (
-              <InlineInsertForm
+      <div className="card-list-group">
+        <AnimatePresence initial={false}>
+          {cards.map((card, idx) => (
+            <React.Fragment key={card.id}>
+              {/* 인라인 삽입 폼: 해당 인덱스 위에 펼쳐짐 */}
+              {insertingIndex === idx && (
+                <InlineInsertForm
+                  index={idx}
+                  onInsert={handleInsertCard}
+                  onCancel={() => setInsertingIndex(null)}
+                  setZoomedImage={setZoomedImage}
+                />
+              )}
+
+              <CardItem 
+                card={card}
                 index={idx}
-                onInsert={handleInsertCard}
-                onCancel={() => setInsertingIndex(null)}
+                totalCount={cards.length}
+                onMoveCard={handleMoveCard}
+                onMoveTo={handleMoveTo}
+                toggleMemorized={toggleMemorized}
+                handleDeleteCard={handleDeleteCard}
+                handleUpdateCard={handleUpdateCard}
                 setZoomedImage={setZoomedImage}
               />
-            )}
 
-            <CardItem 
-              card={card}
-              index={idx}
-              toggleMemorized={toggleMemorized}
-              handleDeleteCard={handleDeleteCard}
-              handleUpdateCard={handleUpdateCard}
-              setZoomedImage={setZoomedImage}
-            />
-
-            {/* 카드 사이 구분자 — 호버 시 추가 버튼 노출 */}
-            {idx < cards.length - 1 && (
-              <div 
-                className="insert-separator"
-                onClick={() => {
-                  setInsertingIndex(idx + 1)
-                }}
-              >
-                <div className="insert-separator-line" />
-                <button type="button" className="insert-separator-btn">
-                  <Plus size={12} /> 단어 추가
-                </button>
-              </div>
-            )}
-          </React.Fragment>
-        ))}
-      </Reorder.Group>
+              {/* 카드 사이 구분자 — 호버 시 추가 버튼 노출 */}
+              {idx < cards.length - 1 && (
+                <div 
+                  className="insert-separator"
+                  onClick={() => {
+                    setInsertingIndex(idx + 1)
+                  }}
+                >
+                  <div className="insert-separator-line" />
+                  <button type="button" className="insert-separator-btn">
+                    <Plus size={12} /> 단어 추가
+                  </button>
+                </div>
+              )}
+            </React.Fragment>
+          ))}
+        </AnimatePresence>
+      </div>
 
       {/* 마지막 카드 아래 인라인 추가 폼 */}
       {cards.length > 0 && insertingIndex === cards.length && (
@@ -429,80 +475,6 @@ export default function SetDetail() {
         />
       )}
 
-      <style>{`
-        .input-row { display: flex; flex-direction: column; gap: 1rem; }
-        .legible-input { font-family: inherit; font-size: 0.95rem; line-height: 1.5; }
-        .btn-hover-icon:hover { color: var(--accent-color) !important; }
-        .btn-hover-danger:hover { color: var(--danger) !important; background: rgba(244, 63, 94, 0.05) !important; border-radius: 8px; }
-        
-        .insert-separator {
-          position: relative;
-          height: 8px;
-          padding: 6px 0; /* 시각적 gap은 8px, 실제 호버 감지 영역은 8+14*2=36px */
-          margin: 0 0; /* padding만큼 보정하여 레이아웃 공간은 8px 유지 */
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          z-index: 5;
-        }
-        .insert-separator-line {
-          position: absolute;
-          left: 0;
-          top: 50%;
-          transform: translateY(-50%) scaleX(0);
-          width: 100%;
-          height: 2px;
-          background: linear-gradient(90deg, transparent 0%, var(--accent-color) 50%, transparent 100%);
-          pointer-events: none;
-          transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .insert-separator:hover .insert-separator-line {
-          transform: translateY(-50%) scaleX(1);
-        }
-        .insert-separator-btn {
-          position: relative;
-          z-index: 1;
-          background: var(--card-bg);
-          border: 1px solid var(--accent-color);
-          color: var(--accent-color);
-          padding: 0.25rem 0.7rem;
-          border-radius: 20px;
-          font-size: 0.7rem;
-          font-weight: 800;
-          font-family: inherit;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          gap: 0.3rem;
-          opacity: 0;
-          transform: scale(0.8);
-          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
-          transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .insert-separator:hover .insert-separator-btn {
-          opacity: 1;
-          transform: scale(1);
-        }
-
-        @media (max-width: 600px) {
-          .container { padding: 1rem; }
-          .card { padding: 1rem; }
-          .nav-text { display: none; }
-          .card-view-layout {
-            flex-direction: column;
-            align-items: stretch !important;
-            gap: 1rem !important;
-          }
-          .card-controls {
-            margin-left: 0 !important;
-            justify-content: space-between;
-            width: 100%;
-            border-top: 1px solid var(--glass-border);
-            padding-top: 0.8rem;
-          }
-        }
-      `}</style>
     </div>
   )
 }
@@ -510,6 +482,9 @@ export default function SetDetail() {
 const CardItem = memo(({ 
   card, 
   index,
+  totalCount,
+  onMoveCard,
+  onMoveTo,
   toggleMemorized, 
   handleDeleteCard, 
   handleUpdateCard, 
@@ -518,6 +493,9 @@ const CardItem = memo(({
   const [isEditing, setIsEditing] = useState(false)
   const [editingCard, setEditingCard] = useState({ word: '', meaning: '', image: null, preview: null, image_url: '' })
   const [localLoading, setLocalLoading] = useState(false)
+
+  const [isJumpMode, setIsJumpMode] = useState(false)
+  const [jumpInput, setJumpInput] = useState(index + 1)
 
   const handleStartEdit = () => {
     setEditingCard({
@@ -552,25 +530,94 @@ const CardItem = memo(({
     }
   }
 
+  const handleJumpBlur = () => {
+    setIsJumpMode(false)
+    const targetVal = parseInt(jumpInput)
+    if (!isNaN(targetVal) && targetVal > 0 && targetVal !== index + 1) {
+      onMoveTo(index, targetVal)
+    }
+  }
+
+  const handleJumpKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      handleJumpBlur()
+    } else if (e.key === 'Escape') {
+      setIsJumpMode(false)
+    }
+  }
+
   return (
-    <Reorder.Item 
-      value={card} 
+    <motion.div 
+      layout
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.25, ease: 'easeInOut' }}
       className="card-list-item-wrapper"
-      initial={false}
     >
       <div className={`card card-list-item ${isEditing ? 'editing' : ''}`}>
-        <div className="drag-handle" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          <GripVertical size={20} />
-          <span className="card-number-badge" style={{
-            fontSize: '0.75rem',
-            fontWeight: '800',
-            color: 'var(--text-secondary)',
-            background: 'rgba(255, 255, 255, 0.08)',
-            padding: '2px 6px',
-            borderRadius: '4px',
-            minWidth: '18px',
-            textAlign: 'center'
-          }}>{index + 1}</span>
+        <div className="drag-handle" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem', userSelect: 'none' }}>
+          <button 
+            type="button" 
+            disabled={index === 0} 
+            onClick={() => onMoveCard(index, 'up')}
+            style={{ padding: '0.2rem', opacity: index === 0 ? 0.3 : 1, cursor: index === 0 ? 'not-allowed' : 'pointer' }}
+            title="위로 이동"
+          >
+            <ChevronUp size={16} />
+          </button>
+          
+          {isJumpMode ? (
+            <input
+              type="number"
+              value={jumpInput}
+              onChange={(e) => setJumpInput(e.target.value)}
+              onBlur={handleJumpBlur}
+              onKeyDown={handleJumpKeyDown}
+              autoFocus
+              style={{
+                width: '28px',
+                fontSize: '0.75rem',
+                fontWeight: '800',
+                textAlign: 'center',
+                padding: '2px !important',
+                background: 'rgba(255, 255, 255, 0.15)',
+                border: '1px solid var(--accent-color)',
+                borderRadius: '4px',
+                color: 'white'
+              }}
+              onFocus={(e) => e.target.select()}
+            />
+          ) : (
+            <span 
+              onClick={() => { setIsJumpMode(true); setJumpInput(index + 1) }}
+              className="card-number-badge btn-hover" 
+              style={{
+                fontSize: '0.75rem',
+                fontWeight: '800',
+                color: 'var(--text-secondary)',
+                background: 'rgba(255, 255, 255, 0.08)',
+                padding: '2px 6px',
+                borderRadius: '4px',
+                minWidth: '24px',
+                textAlign: 'center',
+                cursor: 'pointer'
+              }}
+              title="클릭하여 순서 변경"
+            >
+              {index + 1}
+            </span>
+          )}
+
+          <button 
+            type="button" 
+            disabled={index === totalCount - 1} 
+            onClick={() => onMoveCard(index, 'down')}
+            style={{ padding: '0.2rem', opacity: index === totalCount - 1 ? 0.3 : 1, cursor: index === totalCount - 1 ? 'not-allowed' : 'pointer' }}
+            title="아래로 이동"
+          >
+            <ChevronDown size={16} />
+          </button>
         </div>
         
         <div className={`card-item-content ${isEditing ? 'editing' : ''}`}>
@@ -667,7 +714,7 @@ const CardItem = memo(({
           </AnimatePresence>
         </div>
       </div>
-    </Reorder.Item>
+    </motion.div>
   );
 });
 
