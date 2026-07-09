@@ -1394,4 +1394,21 @@ input[type="number"] {
   -moz-appearance: textfield;
 }
 
+/* 테스트 모드 몰라요/알아요 세그먼트 버튼 호버 효과 */
+.test-action-dontknow, .test-action-know {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+.test-action-dontknow:hover {
+  background: rgba(153, 27, 27, 0.15) !important;
+  color: var(--danger) !important;
+  box-shadow: 0 0 10px rgba(185, 28, 28, 0.25);
+  transform: translateY(-1px);
+}
+.test-action-know:hover {
+  background: rgba(21, 128, 61, 0.15) !important;
+  color: var(--success) !important;
+  box-shadow: 0 0 10px rgba(21, 128, 61, 0.25);
+  transform: translateY(-1px);
+}
+
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, CheckCircle, XCircle, Award, RefreshCcw, Eye, EyeOff, X, Settings } from 'lucide-react'
+import { ArrowLeft, CheckCircle, XCircle, Award, RefreshCcw, Eye, EyeOff, X, Settings, ChevronLeft, ChevronRight } from 'lucide-react'
 
 export default function TestMode() {
   const { id } = useParams()
@@ -17,6 +17,7 @@ export default function TestMode() {
   const [zoomedImage, setZoomedImage] = useState(null)
   
   const [showSettings, setShowSettings] = useState(false)
+  const [activeKey, setActiveKey] = useState(null)
   
   // 설정 및 권한 상태
   const [isOwner, setIsOwner] = useState(true)
@@ -203,8 +204,45 @@ export default function TestMode() {
     setCurrentIndex(0)
     setIsFlipped(false)
     setShowHint(false)
-    fetchUnmemorizedCards()
+    loadTestSession()
   }
+
+  // 키보드 단축키 바인딩
+  useEffect(() => {
+    if (cards.length === 0 || testFinished) return
+
+    const handleKeyDown = (e) => {
+      if (document.activeElement.tagName === 'INPUT') return
+
+      if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
+        e.preventDefault()
+        setIsFlipped((prev) => !prev)
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault()
+        if (isFlipped && !activeKey) {
+          setActiveKey('dontknow')
+          setTimeout(() => {
+            handleResult(false)
+            setActiveKey(null)
+          }, 200)
+        }
+      } else if (e.code === 'ArrowRight') {
+        e.preventDefault()
+        if (isFlipped && !activeKey) {
+          setActiveKey('know')
+          setTimeout(() => {
+            handleResult(true)
+            setActiveKey(null)
+          }, 200)
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [cards, currentIndex, isFlipped, testFinished, correctCount, activeKey])
 
   const getSegmentBtnStyle = (active) => ({
     padding: '0.4rem 1rem',
@@ -321,7 +359,7 @@ export default function TestMode() {
       </AnimatePresence>
 
       <div className="flashcard-container" onClick={() => setIsFlipped(!isFlipped)}>
-        <motion.div className="flashcard-inner" animate={{ rotateY: isFlipped ? 180 : 0 }} transition={{ duration: 0.6, type: 'spring', stiffness: 260, damping: 20 }}>
+        <motion.div className="flashcard-inner" animate={{ rotateX: isFlipped ? 180 : 0 }} transition={{ duration: 0.6, type: 'spring', stiffness: 260, damping: 20 }}>
           {(() => {
             const frontText = direction === 'word' ? currentCard.word : currentCard.meaning
             const backText = direction === 'word' ? currentCard.meaning : currentCard.word
@@ -369,13 +407,53 @@ export default function TestMode() {
 
       <AnimatePresence>
         {isFlipped && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="test-actions-section">
-            <button className="card test-dontknow-btn btn-hover" onClick={(e) => { e.stopPropagation(); handleResult(false); }}>
-              <XCircle size={22} /> 몰라요
-            </button>
-            <button className="btn-primary test-know-btn" onClick={(e) => { e.stopPropagation(); handleResult(true); }}>
-              <CheckCircle size={22} /> 알아요!
-            </button>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="study-actions-section" onClick={(e) => e.stopPropagation()}>
+            <div className="setting-segment study-memorize-segment" style={{ maxWidth: '320px' }}>
+              <button 
+                type="button"
+                className="test-action-dontknow"
+                onClick={() => handleResult(false)}
+                style={{
+                  ...getSegmentBtnStyle(false),
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.4rem',
+                  padding: '0.6rem 1rem',
+                  background: activeKey === 'dontknow' ? 'rgba(153, 27, 27, 0.15)' : 'transparent',
+                  color: activeKey === 'dontknow' ? 'var(--danger)' : 'var(--text-secondary)',
+                  boxShadow: activeKey === 'dontknow' ? '0 0 10px rgba(185, 28, 28, 0.25)' : 'none',
+                  transform: activeKey === 'dontknow' ? 'translateY(-1px)' : 'none',
+                  fontFamily: 'inherit'
+                }}
+              >
+                <XCircle size={16} />
+                <span>몰라요</span>
+              </button>
+              <button 
+                type="button"
+                className="test-action-know"
+                onClick={() => handleResult(true)}
+                style={{
+                  ...getSegmentBtnStyle(false),
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.4rem',
+                  padding: '0.6rem 1rem',
+                  background: activeKey === 'know' ? 'rgba(21, 128, 61, 0.15)' : 'transparent',
+                  color: activeKey === 'know' ? 'var(--success)' : 'var(--text-secondary)',
+                  boxShadow: activeKey === 'know' ? '0 0 10px rgba(21, 128, 61, 0.25)' : 'none',
+                  transform: activeKey === 'know' ? 'translateY(-1px)' : 'none',
+                  fontFamily: 'inherit'
+                }}
+              >
+                <CheckCircle size={16} />
+                <span>알아요!</span>
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
