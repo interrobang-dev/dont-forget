@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Eye, EyeOff, Settings, Shuffle, X, Type, BookOpen, RotateCcw } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Eye, EyeOff, Settings, Shuffle, X, Type, BookOpen, RotateCcw, Check } from 'lucide-react'
 
 export default function StudyMode() {
   const { id } = useParams()
@@ -21,6 +21,10 @@ export default function StudyMode() {
   
   // URL 쿼리 파라미터 초기값
   const queryParams = new URLSearchParams(location.search)
+
+  // 특정 카드 바로 이동 관련 상태
+  const [isJumpMode, setIsJumpMode] = useState(false)
+  const [jumpInput, setJumpInput] = useState('')
   
   // 세트별 설정 로드/저장 로직
   const [isOwner, setIsOwner] = useState(true)
@@ -251,6 +255,19 @@ export default function StudyMode() {
     }, 150)
   }
 
+  const handleJumpSubmit = (e) => {
+    if (e) e.preventDefault()
+    let targetIdx = parseInt(jumpInput, 10)
+    if (!isNaN(targetIdx)) {
+      // 0 및 음수 입력 시 1로 고정, 최대 카드 수 초과 시 최대 수로 고정
+      const clampedIdx = Math.max(1, Math.min(targetIdx, displayCards.length))
+      setIsFlipped(false)
+      setShowHint(false)
+      setCurrentIndex(clampedIdx - 1)
+    }
+    setIsJumpMode(false)
+  }
+
   const toggleMemorized = async (cardId, currentStatus) => {
     if (!isOwner) return // 타인 세트일 경우 스킵
     try {
@@ -331,9 +348,88 @@ export default function StudyMode() {
         <Link to="/" className="study-back-btn">
           <ArrowLeft size={18} /> 그만하기
         </Link>
-        <div className="study-progress-badge">
-          {currentIndex + 1} / {displayCards.length}
-        </div>
+        {isJumpMode ? (
+          <form onSubmit={handleJumpSubmit} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+            <input
+              type="number"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              min={1}
+              max={displayCards.length}
+              value={jumpInput}
+              onChange={(e) => {
+                const val = e.target.value
+                if (val === '') {
+                  setJumpInput('')
+                  return
+                }
+                const parsed = parseInt(val, 10)
+                if (!isNaN(parsed)) {
+                  if (parsed > displayCards.length) {
+                    setJumpInput(displayCards.length.toString())
+                  } else {
+                    setJumpInput(parsed.toString())
+                  }
+                }
+              }}
+              onBlur={() => {
+                // 모바일 터치 오동작을 줄이기 위해 약간의 지연 처리 후 서브밋
+                setTimeout(() => handleJumpSubmit(), 100)
+              }}
+              onFocus={(e) => e.target.select()}
+              autoFocus
+              style={{
+                width: '50px',
+                textAlign: 'center',
+                padding: '0.1rem 0.3rem',
+                borderRadius: '12px',
+                border: '1px solid var(--accent-color)',
+                background: 'var(--glass)',
+                color: 'var(--text-primary)',
+                fontWeight: '600',
+                fontSize: '0.85rem',
+                outline: 'none',
+                height: '24px'
+              }}
+            />
+            <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', fontWeight: '600' }}>
+              / {displayCards.length}
+            </span>
+            <span
+              role="button"
+              onMouseDown={(e) => {
+                // onBlur가 먼저 일어나 작동을 방해하는 것을 막기 위해 프리벤트 디폴트 처리
+                e.preventDefault()
+                handleJumpSubmit()
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--success)',
+                cursor: 'pointer',
+                height: '24px',
+                padding: '2px 6px',
+                borderRadius: '6px'
+              }}
+              title="이동"
+            >
+              <Check size={16} />
+            </span>
+          </form>
+        ) : (
+          <div 
+            className="study-progress-badge" 
+            onClick={() => {
+              setJumpInput((currentIndex + 1).toString())
+              setIsJumpMode(true)
+            }}
+            style={{ cursor: 'pointer' }}
+            title="클릭하여 특정 카드로 이동"
+          >
+            {currentIndex + 1} / {displayCards.length}
+          </div>
+        )}
         <button 
           onClick={() => setShowSettings(!showSettings)}
           className="study-settings-btn"

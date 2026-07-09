@@ -1384,4 +1384,14 @@ textarea:focus, input[type="text"]:focus, input[type="email"]:focus, input[type=
   display: none !important;
 }
 
+/* input[type="number"] 상하 스핀 버튼 제거 */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
 
