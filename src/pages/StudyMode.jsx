@@ -216,12 +216,22 @@ export default function StudyMode() {
     }
   }
 
-  // 키보드 단축키 바인딩: 스페이스바(카드 뒤집기), 좌우 방향키(이전/다음 카드 이동)
+  // 키보드 단축키 바인딩: 상하 방향키(카드 뒤집기), 좌우 방향키(카드 넘기기), 스페이스바(학습 중/암기 완료 토글)
   useEffect(() => {
     if (displayCards.length === 0) return
 
     const handleKeyDown = (e) => {
+      // jumpMode 입력창이 열려있고 포커스된 경우 단축키 동작 방지
+      if (document.activeElement.tagName === 'INPUT') return
+
+      const currentCard = displayCards[currentIndex]
+
       if (e.code === 'Space') {
+        e.preventDefault()
+        if (currentCard) {
+          toggleMemorized(currentCard.id, currentCard.is_memorized)
+        }
+      } else if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
         e.preventDefault()
         setIsFlipped((prev) => !prev)
       } else if (e.code === 'ArrowLeft') {
@@ -237,7 +247,7 @@ export default function StudyMode() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [displayCards])
+  }, [displayCards, currentIndex, isOwner])
 
   const handleNext = () => {
     setIsFlipped(false)
@@ -527,8 +537,22 @@ export default function StudyMode() {
       ) : (
         <>
           <div className="flashcard-container" onClick={() => setIsFlipped(!isFlipped)}>
-            <motion.div className="flashcard-inner" animate={{ rotateY: isFlipped ? 180 : 0 }} transition={{ duration: 0.6, type: 'spring', stiffness: 260, damping: 20 }}>
-              <div className="card flashcard-front">
+            <motion.div
+              key={currentIndex}
+              className="flashcard-inner"
+              initial={{ opacity: 0.3, x: 30 }}
+              animate={{ opacity: 1, x: 0, rotateX: isFlipped ? 180 : 0 }}
+              transition={{
+                x: { type: 'spring', stiffness: 300, damping: 25 },
+                opacity: { duration: 0.2 },
+                rotateX: { duration: 0.6, type: 'spring', stiffness: 260, damping: 20 }
+              }}
+            >
+              <div className="card flashcard-front" style={{
+                borderColor: currentCard.is_memorized ? 'var(--success)' : 'var(--glass-border)',
+                boxShadow: currentCard.is_memorized ? '0 8px 32px rgba(21, 128, 61, 0.15)' : '0 8px 24px rgba(0, 0, 0, 0.7)',
+                transition: 'all 0.3s ease'
+              }}>
                 <div className="legible-word" style={{ 
                   fontSize: direction === 'word' 
                     ? getCalculatedSize(currentCard.word.length > 20 ? '1.8rem' : '3rem', wordSize)
@@ -538,7 +562,11 @@ export default function StudyMode() {
                   {direction === 'word' ? currentCard.word : currentCard.meaning}
                 </div>
               </div>
-              <div className="card flashcard-back">
+              <div className="card flashcard-back" style={{
+                borderColor: currentCard.is_memorized ? 'var(--success)' : 'var(--accent-color)',
+                boxShadow: currentCard.is_memorized ? 'inset 0 0 40px rgba(21, 128, 61, 0.15), 0 8px 32px rgba(21, 128, 61, 0.15)' : 'inset 0 0 40px rgba(99, 102, 241, 0.1), 0 8px 24px rgba(0, 0, 0, 0.7)',
+                transition: 'all 0.3s ease'
+              }}>
                 <div className="legible-word" style={{ 
                   fontSize: direction === 'word'
                     ? getCalculatedSize(currentCard.meaning.length > 30 ? '1.5rem' : '2.4rem', meaningSize)
@@ -614,8 +642,12 @@ export default function StudyMode() {
                     justifyContent: 'center',
                     gap: '0.4rem',
                     padding: '0.6rem 1rem',
-                    background: currentCard.is_memorized ? 'var(--success)' : 'transparent',
-                    boxShadow: currentCard.is_memorized ? '0 2px 8px rgba(21, 128, 61, 0.3)' : 'none',
+                    background: currentCard.is_memorized ? 'var(--text-secondary)' : 'transparent',
+                    color: currentCard.is_memorized ? 'var(--success)' : 'var(--text-secondary)',
+                    boxShadow: currentCard.is_memorized ? '0 4px 12px rgba(255, 255, 255, 0.15)' : 'none',
+                    border: currentCard.is_memorized ? '1px solid rgba(255, 255, 255, 0.2)' : 'none',
+                    transform: currentCard.is_memorized ? 'scale(1.02)' : 'none',
+                    fontWeight: currentCard.is_memorized ? '800' : '700',
                     fontFamily: 'inherit'
                   }}
                 >
