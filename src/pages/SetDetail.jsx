@@ -19,12 +19,9 @@ export default function SetDetail() {
   const [zoomedImage, setZoomedImage] = useState(null)
 
   const [newCard, setNewCard] = useState({ word: '', meaning: '', image: null, preview: null })
-  const [editingCard, setEditingCard] = useState(null)
 
   // 단어 사이 인라인 삽입 관련 상태
   const [insertingIndex, setInsertingIndex] = useState(null)
-  const [insertCardData, setInsertCardData] = useState({ word: '', meaning: '', image: null, preview: null })
-  const [insertLoading, setInsertLoading] = useState(false)
 
   // 세트 제목 인라인 편집 관련 상태
   const [editingTitle, setEditingTitle] = useState(false)
@@ -123,15 +120,11 @@ export default function SetDetail() {
     }
   }, [])
 
-  const handleImageChange = useCallback((e, isEdit = false) => {
+  const handleImageChange = useCallback((e) => {
     const file = e.target.files[0]
     if (file) {
       const previewUrl = URL.createObjectURL(file)
-      if (isEdit) {
-        setEditingCard(prev => ({ ...prev, image: file, preview: previewUrl }))
-      } else {
-        setNewCard(prev => ({ ...prev, image: file, preview: previewUrl }))
-      }
+      setNewCard(prev => ({ ...prev, image: file, preview: previewUrl }))
     }
   }, [])
 
@@ -164,17 +157,15 @@ export default function SetDetail() {
     }
   }, [newCard, id, cards.length])
 
-  const handleInsertCard = useCallback(async (index) => {
-    if (!insertCardData.word.trim() || !insertCardData.meaning.trim()) return
-    setInsertLoading(true)
+  const handleInsertCard = useCallback(async (index, insertData) => {
     try {
       let image_url = null
-      if (insertCardData.image) image_url = await uploadImage(insertCardData.image)
+      if (insertData.image) image_url = await uploadImage(insertData.image)
       
       const { data, error } = await supabase.from('cards').insert([{
         set_id: id, 
-        word: insertCardData.word, 
-        meaning: insertCardData.meaning, 
+        word: insertData.word, 
+        meaning: insertData.meaning, 
         image_url, 
         display_order: index
       }]).select()
@@ -192,8 +183,6 @@ export default function SetDetail() {
       
       // UI 즉시 업데이트 및 폼 닫기
       setInsertingIndex(null)
-      setInsertCardData({ word: '', meaning: '', image: null, preview: null })
-      setInsertLoading(false)
       
       // display_order 재정렬은 백그라운드에서 처리 (UI 차단 없음)
       if (updatedCards) {
@@ -204,61 +193,9 @@ export default function SetDetail() {
       }
     } catch (error) {
       alert('단어 추가 실패: ' + error.message)
-      setInsertLoading(false)
+      throw error
     }
-  }, [insertCardData, id])
-
-  const renderInlineInsertForm = (index) => {
-    return (
-      <motion.div 
-        initial={{ opacity: 0, y: -10 }} 
-        animate={{ opacity: 1, y: 0 }} 
-        exit={{ opacity: 0, y: -10 }}
-        className="card inline-insert-form"
-      >
-        <h4 className="inline-insert-title">
-          <Plus size={14} /> 여기에 단어 추가하기
-        </h4>
-        <div className="input-row">
-          <textarea
-            className="legible-input inline-textarea"
-            placeholder="단어/개념 (예: Apple)"
-            value={insertCardData.word}
-            onChange={(e) => setInsertCardData({ ...insertCardData, word: e.target.value })}
-          />
-          <textarea
-            className="legible-input inline-textarea"
-            placeholder="뜻/설명 (예: 사과)"
-            value={insertCardData.meaning}
-            onChange={(e) => setInsertCardData({ ...insertCardData, meaning: e.target.value })}
-          />
-        </div>
-        <div className="inline-form-footer">
-          <label className="inline-image-upload-label">
-            <ImageIcon size={16} /> {insertCardData.image ? '이미지 교체' : '이미지 첨부'}
-            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => {
-              const file = e.target.files[0]
-              if (file) {
-                setInsertCardData({ ...insertCardData, image: file, preview: URL.createObjectURL(file) })
-              }
-            }} />
-          </label>
-          {insertCardData.preview && (
-            <div onClick={() => setZoomedImage(insertCardData.preview)} className="inline-preview-container">
-              <img src={insertCardData.preview} className="preview-image" />
-              <button type="button" onClick={(e) => { e.stopPropagation(); setInsertCardData({ ...insertCardData, image: null, preview: null }); }} className="inline-preview-remove-btn"><X size={10} /></button>
-            </div>
-          )}
-          <div className="inline-actions-group">
-            <button type="button" onClick={() => setInsertingIndex(null)} className="inline-cancel-btn">취소</button>
-            <button type="button" className="btn-primary inline-submit-btn" disabled={insertLoading} onClick={() => handleInsertCard(index)}>
-              {insertLoading ? <Loader2 className="animate-spin" size={16} /> : '추가하기'}
-            </button>
-          </div>
-        </div>
-      </motion.div>
-    )
-  }
+  }, [id])
 
   const handleDeleteCard = useCallback(async (cardId, imageUrl) => {
     if (!confirm('단어를 삭제하시겠습니까?')) return
@@ -275,25 +212,20 @@ export default function SetDetail() {
     }
   }, [])
 
-  const handleUpdateCard = useCallback(async (e) => {
-    e.preventDefault()
-    if (!editingCard) return
-    setActionLoading(true)
+  const handleUpdateCard = useCallback(async (updatedCard) => {
     try {
-      let image_url = editingCard.image_url
-      if (editingCard.image) image_url = await uploadImage(editingCard.image)
+      let image_url = updatedCard.image_url
+      if (updatedCard.image) image_url = await uploadImage(updatedCard.image)
       const { error } = await supabase.from('cards').update({
-        word: editingCard.word, meaning: editingCard.meaning, image_url
-      }).eq('id', editingCard.id)
+        word: updatedCard.word, meaning: updatedCard.meaning, image_url
+      }).eq('id', updatedCard.id)
       if (error) throw error
-      setCards(prev => prev.map(c => c.id === editingCard.id ? { ...editingCard, image_url } : c))
-      setEditingCard(null)
+      setCards(prev => prev.map(c => c.id === updatedCard.id ? { ...updatedCard, image_url } : c))
     } catch (error) {
       alert(error.message)
-    } finally {
-      setActionLoading(false)
+      throw error
     }
-  }, [editingCard])
+  }, [])
 
   const handleReorder = useCallback(async (newOrder) => {
     setCards(newOrder)
@@ -451,17 +383,21 @@ export default function SetDetail() {
         {cards.map((card, idx) => (
           <React.Fragment key={card.id}>
             {/* 인라인 삽입 폼: 해당 인덱스 위에 펼쳐짐 */}
-            {insertingIndex === idx && renderInlineInsertForm(idx)}
+            {insertingIndex === idx && (
+              <InlineInsertForm
+                index={idx}
+                onInsert={handleInsertCard}
+                onCancel={() => setInsertingIndex(null)}
+                setZoomedImage={setZoomedImage}
+              />
+            )}
 
             <CardItem 
               card={card}
-              isEditing={editingCard?.id === card.id}
-              editingCard={editingCard}
-              setEditingCard={setEditingCard}
+              index={idx}
               toggleMemorized={toggleMemorized}
               handleDeleteCard={handleDeleteCard}
               handleUpdateCard={handleUpdateCard}
-              handleImageChange={handleImageChange}
               setZoomedImage={setZoomedImage}
             />
 
@@ -471,7 +407,6 @@ export default function SetDetail() {
                 className="insert-separator"
                 onClick={() => {
                   setInsertingIndex(idx + 1)
-                  setInsertCardData({ word: '', meaning: '', image: null, preview: null })
                 }}
               >
                 <div className="insert-separator-line" />
@@ -485,7 +420,14 @@ export default function SetDetail() {
       </Reorder.Group>
 
       {/* 마지막 카드 아래 인라인 추가 폼 */}
-      {cards.length > 0 && insertingIndex === cards.length && renderInlineInsertForm(cards.length)}
+      {cards.length > 0 && insertingIndex === cards.length && (
+        <InlineInsertForm
+          index={cards.length}
+          onInsert={handleInsertCard}
+          onCancel={() => setInsertingIndex(null)}
+          setZoomedImage={setZoomedImage}
+        />
+      )}
 
       <style>{`
         .input-row { display: flex; flex-direction: column; gap: 1rem; }
@@ -567,15 +509,49 @@ export default function SetDetail() {
 
 const CardItem = memo(({ 
   card, 
-  isEditing, 
-  editingCard, 
-  setEditingCard, 
+  index,
   toggleMemorized, 
   handleDeleteCard, 
   handleUpdateCard, 
-  handleImageChange,
   setZoomedImage
 }) => {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editingCard, setEditingCard] = useState({ word: '', meaning: '', image: null, preview: null, image_url: '' })
+  const [localLoading, setLocalLoading] = useState(false)
+
+  const handleStartEdit = () => {
+    setEditingCard({
+      ...card,
+      image: null,
+      preview: card.image_url
+    })
+    setIsEditing(true)
+  }
+
+  const handleLocalImageChange = (e) => {
+    const file = e.target.files[0]
+    if (file) {
+      setEditingCard(prev => ({
+        ...prev,
+        image: file,
+        preview: URL.createObjectURL(file)
+      }))
+    }
+  }
+
+  const handleLocalSubmit = async (e) => {
+    e.preventDefault()
+    setLocalLoading(true)
+    try {
+      await handleUpdateCard(editingCard)
+      setIsEditing(false)
+    } catch (err) {
+      // 상위 부모에서 에러를 경고 처리하므로 캐치만 해둠
+    } finally {
+      setLocalLoading(false)
+    }
+  }
+
   return (
     <Reorder.Item 
       value={card} 
@@ -583,7 +559,19 @@ const CardItem = memo(({
       initial={false}
     >
       <div className={`card card-list-item ${isEditing ? 'editing' : ''}`}>
-        <div className="drag-handle"><GripVertical size={20} /></div>
+        <div className="drag-handle" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <GripVertical size={20} />
+          <span className="card-number-badge" style={{
+            fontSize: '0.75rem',
+            fontWeight: '800',
+            color: 'var(--text-secondary)',
+            background: 'rgba(255, 255, 255, 0.08)',
+            padding: '2px 6px',
+            borderRadius: '4px',
+            minWidth: '18px',
+            textAlign: 'center'
+          }}>{index + 1}</span>
+        </div>
         
         <div className={`card-item-content ${isEditing ? 'editing' : ''}`}>
           <AnimatePresence mode="wait">
@@ -595,7 +583,7 @@ const CardItem = memo(({
                 animate={{ opacity: 1 }} 
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.15 }}
-                onSubmit={handleUpdateCard} 
+                onSubmit={handleLocalSubmit} 
                 className="edit-form"
               >
                 <div className="input-row">
@@ -605,10 +593,18 @@ const CardItem = memo(({
                 <div className="edit-form-footer">
                    <label className="edit-image-upload-label">
                       <ImageIcon size={16} /> 이미지 추가/변경
-                      <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleImageChange(e, true)} />
+                      <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLocalImageChange} />
                    </label>
-                   <button type="button" onClick={() => setEditingCard(null)} className="edit-cancel-btn">취소</button>
-                   <button type="submit" className="btn-primary edit-save-btn">저장</button>
+                   {editingCard.preview && (
+                     <div onClick={() => setZoomedImage(editingCard.preview)} className="inline-preview-container" style={{ margin: '0 0.5rem', cursor: 'zoom-in', position: 'relative', display: 'inline-block' }}>
+                       <img src={editingCard.preview} className="preview-image" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }} />
+                       <button type="button" onClick={(e) => { e.stopPropagation(); setEditingCard({ ...editingCard, image: null, preview: null, image_url: null }); }} className="inline-preview-remove-btn" style={{ position: 'absolute', top: '-4px', right: '-4px', background: 'var(--danger)', border: 'none', borderRadius: '50%', width: '14px', height: '14px', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}><X size={8} /></button>
+                     </div>
+                   )}
+                   <button type="button" onClick={() => setIsEditing(false)} className="edit-cancel-btn" disabled={localLoading}>취소</button>
+                   <button type="submit" className="btn-primary edit-save-btn" disabled={localLoading}>
+                     {localLoading ? <Loader2 className="animate-spin" size={16} /> : '저장'}
+                   </button>
                 </div>
               </motion.form>
             ) : (
@@ -660,9 +656,9 @@ const CardItem = memo(({
                       <CheckCircle2 size={18} />
                     </button>
                   </div>
-  
+   
                   <div className="card-actions-wrapper">
-                    <button onClick={() => setEditingCard({ ...card, image: null, preview: card.image_url })} className="action-icon-btn btn-hover-icon" title="수정"><Edit2 size={18} /></button>
+                    <button onClick={handleStartEdit} className="action-icon-btn btn-hover-icon" title="수정"><Edit2 size={18} /></button>
                     <button onClick={() => handleDeleteCard(card.id, card.image_url)} className="action-danger-btn btn-hover-danger" title="삭제"><Trash2 size={18} /></button>
                   </div>
                 </div>
@@ -673,5 +669,80 @@ const CardItem = memo(({
       </div>
     </Reorder.Item>
   );
+});
+
+const InlineInsertForm = memo(({ index, onInsert, onCancel, setZoomedImage }) => {
+  const [word, setWord] = useState('')
+  const [meaning, setMeaning] = useState('')
+  const [image, setImage] = useState(null)
+  const [preview, setPreview] = useState(null)
+  const [localLoading, setLocalLoading] = useState(false)
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0]
+    if (file) {
+      setImage(file)
+      setPreview(URL.createObjectURL(file))
+    }
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!word.trim() || !meaning.trim()) return
+    setLocalLoading(true)
+    try {
+      await onInsert(index, { word, meaning, image })
+    } catch (e) {
+      // 상위 부모에서 에러를 처리하므로 여기선 처리 상태만 리셋
+    } finally {
+      setLocalLoading(false)
+    }
+  }
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: -10 }} 
+      animate={{ opacity: 1, y: 0 }} 
+      exit={{ opacity: 0, y: -10 }}
+      className="card inline-insert-form"
+      style={{ margin: '0.5rem 0' }}
+    >
+      <h4 className="inline-insert-title">
+        <Plus size={14} /> 여기에 단어 추가하기
+      </h4>
+      <div className="input-row">
+        <textarea
+          className="legible-input inline-textarea"
+          placeholder="단어/개념 (예: Apple)"
+          value={word}
+          onChange={(e) => setWord(e.target.value)}
+        />
+        <textarea
+          className="legible-input inline-textarea"
+          placeholder="뜻/설명 (예: 사과)"
+          value={meaning}
+          onChange={(e) => setMeaning(e.target.value)}
+        />
+      </div>
+      <div className="inline-form-footer">
+        <label className="inline-image-upload-label">
+          <ImageIcon size={16} /> {image ? '이미지 교체' : '이미지 첨부'}
+          <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImageChange} />
+        </label>
+        {preview && (
+          <div onClick={() => setZoomedImage(preview)} className="inline-preview-container">
+            <img src={preview} className="preview-image" />
+            <button type="button" onClick={(e) => { e.stopPropagation(); setImage(null); setPreview(null); }} className="inline-preview-remove-btn"><X size={10} /></button>
+          </div>
+        )}
+        <div className="inline-actions-group">
+          <button type="button" onClick={onCancel} className="inline-cancel-btn" disabled={localLoading}>취소</button>
+          <button type="button" className="btn-primary inline-submit-btn" disabled={localLoading} onClick={handleSubmit}>
+            {localLoading ? <Loader2 className="animate-spin" size={16} /> : '추가하기'}
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  )
 });
 
