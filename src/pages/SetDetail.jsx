@@ -216,6 +216,14 @@ export default function SetDetail() {
     try {
       let image_url = updatedCard.image_url
       if (updatedCard.image) image_url = await uploadImage(updatedCard.image)
+      
+      // 이미지가 삭제되었거나 다른 이미지로 변경된 경우 기존 이미지 삭제
+      const oldCard = cards.find(c => c.id === updatedCard.id)
+      if (oldCard && oldCard.image_url && oldCard.image_url !== image_url) {
+        const fileName = oldCard.image_url.split('/').pop()
+        await supabase.storage.from('word-images').remove([fileName])
+      }
+
       const { error } = await supabase.from('cards').update({
         word: updatedCard.word, meaning: updatedCard.meaning, image_url
       }).eq('id', updatedCard.id)
@@ -225,7 +233,7 @@ export default function SetDetail() {
       alert(error.message)
       throw error
     }
-  }, [])
+  }, [cards])
 
   const handleMoveCard = useCallback(async (index, direction) => {
     const targetIndex = direction === 'up' ? index - 1 : index + 1
@@ -608,7 +616,7 @@ const CardItem = memo(({
               {index + 1}
             </span>
           )}
-
+ 
           <button 
             type="button" 
             disabled={index === totalCount - 1} 
