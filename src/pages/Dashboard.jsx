@@ -156,8 +156,8 @@ export default function Dashboard({ session }) {
       const savedTest = localStorage.getItem('quick_test_settings')
       const testAll = savedTest ? JSON.parse(savedTest) : {}
       
-      const testKey = key === 'order' ? 'isRandom' : key
-      const testValue = key === 'order' ? (value === 'rand') : value
+      const testKey = key === 'order' ? 'studyOrder' : key
+      const testValue = value
       
       testAll[setId] = { 
         ...testAll[setId], 
@@ -592,8 +592,8 @@ export default function Dashboard({ session }) {
                            <div className="settings-row">
                              <span className="settings-label">카드 방향</span>
                              <div className="segment-control segment-control-wrapper">
-                               <button onClick={() => updateQuickSetting(set.id, 'direction', 'word')} style={getSegmentStyle(quickSettings[set.id]?.direction === 'word')}>단어 우선</button>
-                               <button onClick={() => updateQuickSetting(set.id, 'direction', 'meaning')} style={getSegmentStyle(quickSettings[set.id]?.direction === 'meaning')}>뜻 우선</button>
+                               <button onClick={() => updateQuickSetting(set.id, 'direction', 'word')} style={getSegmentStyle(quickSettings[set.id]?.direction === 'word')}>단어</button>
+                               <button onClick={() => updateQuickSetting(set.id, 'direction', 'meaning')} style={getSegmentStyle(quickSettings[set.id]?.direction === 'meaning')}>뜻</button>
                              </div>
                            </div>
 
@@ -601,7 +601,8 @@ export default function Dashboard({ session }) {
                            <div className="settings-row">
                              <span className="settings-label">진행 순서</span>
                              <div className="segment-control segment-control-wrapper">
-                               <button onClick={() => updateQuickSetting(set.id, 'order', 'seq')} style={getSegmentStyle(quickSettings[set.id]?.order === 'seq')}>순차적</button>
+                               <button onClick={() => updateQuickSetting(set.id, 'order', 'seq')} style={getSegmentStyle(quickSettings[set.id]?.order === 'seq')}>순차</button>
+                               <button onClick={() => updateQuickSetting(set.id, 'order', 'rev')} style={getSegmentStyle(quickSettings[set.id]?.order === 'rev')}>역순</button>
                                <button onClick={() => updateQuickSetting(set.id, 'order', 'rand')} style={getSegmentStyle(quickSettings[set.id]?.order === 'rand')}>무작위</button>
                              </div>
                            </div>
@@ -805,8 +806,8 @@ export default function Dashboard({ session }) {
                            <div className="settings-row">
                              <span className="settings-label">카드 방향</span>
                              <div className="segment-control segment-control-wrapper">
-                               <button onClick={() => updateQuickSetting(set.id, 'direction', 'word')} style={getSegmentStyle(quickSettings[set.id]?.direction === 'word')}>단어 우선</button>
-                               <button onClick={() => updateQuickSetting(set.id, 'direction', 'meaning')} style={getSegmentStyle(quickSettings[set.id]?.direction === 'meaning')}>뜻 우선</button>
+                               <button onClick={() => updateQuickSetting(set.id, 'direction', 'word')} style={getSegmentStyle(quickSettings[set.id]?.direction === 'word')}>단어</button>
+                               <button onClick={() => updateQuickSetting(set.id, 'direction', 'meaning')} style={getSegmentStyle(quickSettings[set.id]?.direction === 'meaning')}>뜻</button>
                              </div>
                            </div>
 
@@ -814,7 +815,8 @@ export default function Dashboard({ session }) {
                            <div className="settings-row">
                              <span className="settings-label">진행 순서</span>
                              <div className="segment-control segment-control-wrapper">
-                               <button onClick={() => updateQuickSetting(set.id, 'order', 'seq')} style={getSegmentStyle(quickSettings[set.id]?.order === 'seq')}>순차적</button>
+                               <button onClick={() => updateQuickSetting(set.id, 'order', 'seq')} style={getSegmentStyle(quickSettings[set.id]?.order === 'seq')}>순차</button>
+                               <button onClick={() => updateQuickSetting(set.id, 'order', 'rev')} style={getSegmentStyle(quickSettings[set.id]?.order === 'rev')}>역순</button>
                                <button onClick={() => updateQuickSetting(set.id, 'order', 'rand')} style={getSegmentStyle(quickSettings[set.id]?.order === 'rand')}>무작위</button>
                              </div>
                            </div>

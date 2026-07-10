@@ -542,7 +542,9 @@ const CardItem = memo(({
     setIsJumpMode(false)
     const targetVal = parseInt(jumpInput)
     if (!isNaN(targetVal) && targetVal > 0 && targetVal !== index + 1) {
-      onMoveTo(index, targetVal)
+      setTimeout(() => {
+        onMoveTo(index, targetVal)
+      }, 1)
     }
   }
 

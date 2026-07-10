@@ -24,7 +24,7 @@ export default function TestMode() {
   const [wordSize, setWordSize] = useState('medium')
   const [meaningSize, setMeaningSize] = useState('medium')
   const [direction, setDirection] = useState('word')
-  const [isRandom, setIsRandom] = useState(false)
+  const [studyOrder, setStudyOrder] = useState('seq') // 'seq', 'rev', 'rand'
 
   // 초기 설정 및 테스트 카드 로드
   useEffect(() => {
@@ -35,22 +35,31 @@ export default function TestMode() {
   useEffect(() => {
     if (cards.length === 0) return
     let finalCards = [...cards]
-    if (isRandom) {
+    if (studyOrder === 'rand') {
       finalCards = finalCards.sort(() => Math.random() - 0.5)
+    } else if (studyOrder === 'rev') {
+      finalCards = finalCards.sort((a, b) => (b.display_order || 0) - (a.display_order || 0))
     } else {
       finalCards = finalCards.sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
     }
     setCards(finalCards)
     setCurrentIndex(0)
     setIsFlipped(false)
-  }, [isRandom])
+  }, [studyOrder])
 
   // 설정 저장 (소유주인 경우에만 Supabase API 실시간 적재, 타인은 로컬만 적용)
   const saveSettings = async (key, value) => {
     const savedAll = localStorage.getItem('quick_test_settings')
     const allSettings = savedAll ? JSON.parse(savedAll) : {}
     const currentSettings = allSettings[id] || {}
-    allSettings[id] = { ...currentSettings, [key]: value }
+    
+    let finalKey = key;
+    let finalValue = value;
+    if (key === 'studyOrder') {
+      finalKey = 'studyOrder'; // key matching
+    }
+    
+    allSettings[id] = { ...currentSettings, [finalKey]: finalValue }
     localStorage.setItem('quick_test_settings', JSON.stringify(allSettings))
 
     if (isOwner) {
@@ -58,17 +67,15 @@ export default function TestMode() {
         wordSize: 'word_size',
         meaningSize: 'meaning_size',
         direction: 'study_direction',
-        isRandom: 'study_order'
+        studyOrder: 'study_order'
       }
       const dbField = dbFieldMap[key]
       if (!dbField) return
 
-      const dbValue = key === 'isRandom' ? (value ? 'rand' : 'seq') : value;
-
       try {
         await supabase
           .from('word_sets')
-          .update({ [dbField]: dbValue })
+          .update({ [dbField]: value })
           .eq('id', id)
       } catch (e) {
         console.error('설정 저장 실패:', e.message)
@@ -107,9 +114,7 @@ export default function TestMode() {
         const localSettings = allSettings[id] || {}
 
         if (localSettings.direction) dir = localSettings.direction
-        if (localSettings.isRandom !== undefined) {
-          ord = localSettings.isRandom ? 'rand' : 'seq'
-        }
+        if (localSettings.studyOrder) ord = localSettings.studyOrder
         if (localSettings.wordSize) wSz = localSettings.wordSize
         if (localSettings.meaningSize) mSz = localSettings.meaningSize
       }
@@ -121,7 +126,7 @@ export default function TestMode() {
       setDirection(dir)
       setWordSize(wSz)
       setMeaningSize(mSz)
-      setIsRandom(ord === 'rand')
+      setStudyOrder(ord)
       
       // 2. 설정된 exclude_memorized 여부에 따라 카드 데이터를 Supabase에서 분기 쿼리
       let query = supabase
@@ -140,6 +145,8 @@ export default function TestMode() {
       let finalCards = cardsData || []
       if (ord === 'rand') {
         finalCards = [...finalCards].sort(() => Math.random() - 0.5)
+      } else if (ord === 'rev') {
+        finalCards = [...finalCards].sort((a, b) => (b.display_order || 0) - (a.display_order || 0))
       } else {
         finalCards = [...finalCards].sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
       }
@@ -333,8 +340,9 @@ export default function TestMode() {
               <div className="setting-column">
                 <span className="setting-label">진행 순서</span>
                 <div className="setting-segment">
-                  <button onClick={() => { setIsRandom(false); saveSettings('isRandom', false); }} style={getSegmentBtnStyle(!isRandom)}>순차</button>
-                  <button onClick={() => { setIsRandom(true); saveSettings('isRandom', true); }} style={getSegmentBtnStyle(isRandom)}>무작위</button>
+                  <button onClick={() => { setStudyOrder('seq'); saveSettings('studyOrder', 'seq'); }} style={getSegmentBtnStyle(studyOrder === 'seq')}>순차</button>
+                  <button onClick={() => { setStudyOrder('rev'); saveSettings('studyOrder', 'rev'); }} style={getSegmentBtnStyle(studyOrder === 'rev')}>역순</button>
+                  <button onClick={() => { setStudyOrder('rand'); saveSettings('studyOrder', 'rand'); }} style={getSegmentBtnStyle(studyOrder === 'rand')}>무작위</button>
                 </div>
               </div>
               <div className="setting-column">

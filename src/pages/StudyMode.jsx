@@ -29,7 +29,7 @@ export default function StudyMode() {
   // 세트별 설정 로드/저장 로직
   const [isOwner, setIsOwner] = useState(true)
   const [direction, setDirection] = useState('word')
-  const [isRandom, setIsRandom] = useState(false)
+  const [studyOrder, setStudyOrder] = useState('seq') // 'seq', 'rev', 'rand'
   const [wordSize, setWordSize] = useState('medium')
   const [meaningSize, setMeaningSize] = useState('medium')
   const [excludeMemorized, setExcludeMemorized] = useState(false)
@@ -49,9 +49,9 @@ export default function StudyMode() {
     // 호환성을 위해 키 명칭 매핑 (대시보드와 공유)
     let finalKey = key;
     let finalValue = value;
-    if (key === 'isRandom') {
+    if (key === 'studyOrder') {
       finalKey = 'order';
-      finalValue = value ? 'rand' : 'seq';
+      finalValue = value;
     }
 
     allSettings[id] = { ...currentMySettings, [finalKey]: finalValue }
@@ -61,17 +61,16 @@ export default function StudyMode() {
     if (isOwner) {
       const dbFieldMap = {
         direction: 'study_direction',
-        isRandom: 'study_order',
+        studyOrder: 'study_order',
         wordSize: 'word_size',
         meaningSize: 'meaning_size'
       }
       const dbField = dbFieldMap[key]
       if (dbField) {
-        const val = key === 'isRandom' ? (value ? 'rand' : 'seq') : value;
         try {
           await supabase
             .from('word_sets')
-            .update({ [dbField]: val })
+            .update({ [dbField]: value })
             .eq('id', id)
         } catch (e) {
           console.error('클라우드 설정 저장 실패:', e.message)
@@ -113,8 +112,10 @@ export default function StudyMode() {
       setOriginalCards(original)
       
       let currentList = [...original]
-      if (isRandom) {
+      if (studyOrder === 'rand') {
         currentList = currentList.sort(() => Math.random() - 0.5)
+      } else if (studyOrder === 'rev') {
+        currentList = currentList.reverse()
       }
       setDisplayCards(currentList)
       setCurrentIndex(0)
@@ -124,19 +125,21 @@ export default function StudyMode() {
     }
   }
 
-  // 진행 순서(순차/무작위) 토글 설정 변경 시에만 목록 재배열 및 인덱스 초기화
+  // 진행 순서 설정 변경 시에만 목록 재배열 및 인덱스 초기화
   useEffect(() => {
     if (originalCards.length === 0) return
 
     let currentList = [...originalCards]
-    if (isRandom) {
+    if (studyOrder === 'rand') {
       currentList = currentList.sort(() => Math.random() - 0.5)
+    } else if (studyOrder === 'rev') {
+      currentList = currentList.reverse()
     }
 
     setDisplayCards(currentList)
     setCurrentIndex(0)
     setIsFlipped(false)
-  }, [isRandom])
+  }, [studyOrder])
 
   const loadStudySession = async () => {
     setLoading(true)
@@ -179,7 +182,7 @@ export default function StudyMode() {
       
       // 리액트 로컬 상태 설정
       setDirection(dir)
-      setIsRandom(ord === 'rand')
+      setStudyOrder(ord)
       setWordSize(wSz)
       setMeaningSize(mSz)
       setExcludeMemorized(exMem)
@@ -200,10 +203,12 @@ export default function StudyMode() {
       const original = cardsData || []
       setOriginalCards(original)
       
-      // 순차 / 무작위 정렬 반영
+      // 순차 / 역순 / 무작위 정렬 반영
       let currentList = [...original]
       if (ord === 'rand') {
         currentList = currentList.sort(() => Math.random() - 0.5)
+      } else if (ord === 'rev') {
+        currentList = currentList.reverse()
       }
       setDisplayCards(currentList)
       setCurrentIndex(0)
@@ -472,8 +477,9 @@ export default function StudyMode() {
               <div className="settings-row">
                 <span className="settings-label">진행 순서</span>
                 <div className="setting-segment" style={{ width: '100%', maxWidth: '300px' }}>
-                  <button onClick={() => { setIsRandom(false); saveSettings('isRandom', false); }} style={getSegmentBtnStyle(!isRandom)}>순차</button>
-                  <button onClick={() => { setIsRandom(true); saveSettings('isRandom', true); }} style={getSegmentBtnStyle(isRandom)}>무작위</button>
+                  <button onClick={() => { setStudyOrder('seq'); saveSettings('studyOrder', 'seq'); }} style={getSegmentBtnStyle(studyOrder === 'seq')}>순차</button>
+                  <button onClick={() => { setStudyOrder('rev'); saveSettings('studyOrder', 'rev'); }} style={getSegmentBtnStyle(studyOrder === 'rev')}>역순</button>
+                  <button onClick={() => { setStudyOrder('rand'); saveSettings('studyOrder', 'rand'); }} style={getSegmentBtnStyle(studyOrder === 'rand')}>무작위</button>
                 </div>
               </div>
               <div className="settings-row">
