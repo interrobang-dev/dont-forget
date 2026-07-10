@@ -5,7 +5,7 @@ import { motion, Reorder, AnimatePresence } from 'framer-motion'
 import { 
   ArrowLeft, Plus, Trash2, Save, 
   Image as ImageIcon, X, Loader2, BookOpen, Clock, Edit2,
-  Globe, Lock, CheckCircle2, ChevronUp, ChevronDown
+  Globe, Lock, CheckCircle2, ChevronUp, ChevronDown, Clipboard
 } from 'lucide-react'
 
 export default function SetDetail() {
@@ -125,6 +125,43 @@ export default function SetDetail() {
     if (file) {
       const previewUrl = URL.createObjectURL(file)
       setNewCard(prev => ({ ...prev, image: file, preview: previewUrl }))
+    }
+  }, [])
+
+  const handleAddCardPaste = useCallback((e) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+    for (const item of items) {
+      if (item.type.indexOf('image') !== -1) {
+        e.preventDefault()
+        const file = item.getAsFile()
+        if (file) {
+          const previewUrl = URL.createObjectURL(file)
+          setNewCard(prev => ({ ...prev, image: file, preview: previewUrl }))
+        }
+        break
+      }
+    }
+  }, [])
+
+  const handleNewCardClipboardPaste = useCallback(async () => {
+    try {
+      const clipboardItems = await navigator.clipboard.read()
+      for (const item of clipboardItems) {
+        for (const type of item.types) {
+          if (type.startsWith('image/')) {
+            const blob = await item.getType(type)
+            const file = new File([blob], "clipboard-image.png", { type })
+            const previewUrl = URL.createObjectURL(file)
+            setNewCard(prev => ({ ...prev, image: file, preview: previewUrl }))
+            return
+          }
+        }
+      }
+      alert('클립보드에 복사된 이미지가 없습니다.')
+    } catch (err) {
+      console.error(err)
+      alert('클립보드 읽기 권한이 필요하거나 지원하지 않는 브라우저입니다.')
     }
   }, [])
 
@@ -392,7 +429,7 @@ export default function SetDetail() {
         <h3 className="section-title">
           <Plus size={18} color="var(--accent-color)" /> 새로운 단어 추가
         </h3>
-        <form onSubmit={handleAddCard} className="add-card-form">
+        <form onSubmit={handleAddCard} className="add-card-form" onPaste={handleAddCardPaste}>
           <div className="input-row">
             <textarea
               className="legible-input"
@@ -410,14 +447,26 @@ export default function SetDetail() {
             />
           </div>
           <div className="form-footer">
-            <label className="image-upload-label">
-              <ImageIcon size={18} /> {newCard.image ? '이미지 교체' : '이미지 첨부'}
-              <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleImageChange(e)} />
-            </label>
+            <div className="image-action-group">
+              <span className="image-action-title">이미지 추가/변경</span>
+              <div className="image-action-buttons">
+                <label className="image-icon-btn" title="파일 첨부">
+                  <ImageIcon size={16} />
+                  <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleImageChange(e)} />
+                </label>
+                <span role="button" onClick={handleNewCardClipboardPaste} className="image-icon-btn" title="클립보드에서 붙여넣기">
+                  <Clipboard size={16} />
+                </span>
+              </div>
+            </div>
             {newCard.preview && (
-              <div onClick={() => setZoomedImage(newCard.preview)} className="preview-image-container">
-                <img src={newCard.preview} className="preview-image" />
-                <button type="button" onClick={(e) => { e.stopPropagation(); setNewCard({ ...newCard, image: null, preview: null }); }} className="preview-remove-btn"><X size={12} /></button>
+              <div className="preview-image-container-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <div onClick={() => setZoomedImage(newCard.preview)} className="preview-image-container" style={{ cursor: 'zoom-in', position: 'relative' }}>
+                  <img src={newCard.preview} className="preview-image" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }} />
+                </div>
+                <button type="button" onClick={(e) => { e.stopPropagation(); setNewCard({ ...newCard, image: null, preview: null }); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.2rem', minWidth: 'auto' }} title="이미지 삭제">
+                  <X size={18} />
+                </button>
               </div>
             )}
             <button type="submit" className="btn-primary add-submit-btn" disabled={actionLoading}>
@@ -522,6 +571,49 @@ const CardItem = memo(({
         image: file,
         preview: URL.createObjectURL(file)
       }))
+    }
+  }
+
+  const handleEditCardPaste = (e) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+    for (const item of items) {
+      if (item.type.indexOf('image') !== -1) {
+        e.preventDefault()
+        const file = item.getAsFile()
+        if (file) {
+          setEditingCard(prev => ({
+            ...prev,
+            image: file,
+            preview: URL.createObjectURL(file)
+          }))
+        }
+        break
+      }
+    }
+  }
+
+  const handleEditCardClipboardPaste = async () => {
+    try {
+      const clipboardItems = await navigator.clipboard.read()
+      for (const item of clipboardItems) {
+        for (const type of item.types) {
+          if (type.startsWith('image/')) {
+            const blob = await item.getType(type)
+            const file = new File([blob], "clipboard-image.png", { type })
+            setEditingCard(prev => ({
+              ...prev,
+              image: file,
+              preview: URL.createObjectURL(file)
+            }))
+            return
+          }
+        }
+      }
+      alert('클립보드에 복사된 이미지가 없습니다.')
+    } catch (err) {
+      console.error(err)
+      alert('클립보드 읽기 권한이 필요하거나 지원하지 않는 브라우저입니다.')
     }
   }
 
@@ -642,28 +734,45 @@ const CardItem = memo(({
                 transition={{ duration: 0.15 }}
                 onSubmit={handleLocalSubmit} 
                 className="edit-form"
+                onPaste={handleEditCardPaste}
               >
                 <div className="input-row">
                   <textarea className="legible-input" style={{ minHeight: '100px' }} value={editingCard.word} onChange={(e) => setEditingCard({ ...editingCard, word: e.target.value })} />
                   <textarea className="legible-input" style={{ minHeight: '100px' }} value={editingCard.meaning} onChange={(e) => setEditingCard({ ...editingCard, meaning: e.target.value })} />
                 </div>
-                <div className="edit-form-footer">
-                   <label className="edit-image-upload-label">
-                      <ImageIcon size={16} /> 이미지 추가/변경
-                      <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLocalImageChange} />
-                   </label>
-                   {editingCard.preview && (
-                     <div onClick={() => setZoomedImage(editingCard.preview)} className="inline-preview-container" style={{ margin: '0 0.5rem', cursor: 'zoom-in', position: 'relative', display: 'inline-block' }}>
-                       <img src={editingCard.preview} className="preview-image" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }} />
-                       <button type="button" onClick={(e) => { e.stopPropagation(); setEditingCard({ ...editingCard, image: null, preview: null, image_url: null }); }} className="inline-preview-remove-btn" style={{ position: 'absolute', top: '-4px', right: '-4px', background: 'var(--danger)', border: 'none', borderRadius: '50%', width: '14px', height: '14px', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}><X size={8} /></button>
+                 <div className="edit-form-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: '1rem' }}>
+                   <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                     <div className="image-action-group">
+                       <span className="image-action-title">이미지 추가/변경</span>
+                       <div className="image-action-buttons">
+                         <label className="image-icon-btn" title="파일 첨부">
+                           <ImageIcon size={14} />
+                           <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLocalImageChange} />
+                         </label>
+                         <span role="button" onClick={handleEditCardClipboardPaste} className="image-icon-btn" title="클립보드에서 붙여넣기">
+                           <Clipboard size={14} />
+                         </span>
+                       </div>
                      </div>
-                   )}
-                   <button type="button" onClick={() => setIsEditing(false)} className="edit-cancel-btn" disabled={localLoading}>취소</button>
-                   <button type="submit" className="btn-primary edit-save-btn" disabled={localLoading}>
-                     {localLoading ? <Loader2 className="animate-spin" size={16} /> : '저장'}
-                   </button>
-                </div>
-              </motion.form>
+                     {editingCard.preview && (
+                       <div className="inline-preview-container-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                         <div onClick={() => setZoomedImage(editingCard.preview)} className="inline-preview-container" style={{ margin: 0, cursor: 'zoom-in', position: 'relative' }}>
+                           <img src={editingCard.preview} className="preview-image" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }} />
+                         </div>
+                         <button type="button" onClick={(e) => { e.stopPropagation(); setEditingCard({ ...editingCard, image: null, preview: null, image_url: null }); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.2rem', minWidth: 'auto' }} title="이미지 삭제">
+                           <X size={18} />
+                         </button>
+                       </div>
+                     )}
+                   </div>
+                   <div style={{ display: 'flex', gap: '0.5rem' }}>
+                     <button type="button" onClick={() => setIsEditing(false)} className="edit-cancel-btn" disabled={localLoading}>취소</button>
+                     <button type="submit" className="btn-primary edit-save-btn" disabled={localLoading}>
+                       {localLoading ? <Loader2 className="animate-spin" size={16} /> : '저장'}
+                     </button>
+                   </div>
+                 </div>
+               </motion.form>
             ) : (
               // 일반 모드
               <motion.div 
@@ -743,6 +852,43 @@ const InlineInsertForm = memo(({ index, onInsert, onCancel, setZoomedImage }) =>
     }
   }
 
+  const handleInlinePaste = (e) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+    for (const item of items) {
+      if (item.type.indexOf('image') !== -1) {
+        e.preventDefault()
+        const file = item.getAsFile()
+        if (file) {
+          setImage(file)
+          setPreview(URL.createObjectURL(file))
+        }
+        break
+      }
+    }
+  }
+
+  const handleInlineClipboardPaste = async () => {
+    try {
+      const clipboardItems = await navigator.clipboard.read()
+      for (const item of clipboardItems) {
+        for (const type of item.types) {
+          if (type.startsWith('image/')) {
+            const blob = await item.getType(type)
+            const file = new File([blob], "clipboard-image.png", { type })
+            setImage(file)
+            setPreview(URL.createObjectURL(file))
+            return
+          }
+        }
+      }
+      alert('클립보드에 복사된 이미지가 없습니다.')
+    } catch (err) {
+      console.error(err)
+      alert('클립보드 읽기 권한이 필요하거나 지원하지 않는 브라우저입니다.')
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!word.trim() || !meaning.trim()) return
@@ -763,6 +909,7 @@ const InlineInsertForm = memo(({ index, onInsert, onCancel, setZoomedImage }) =>
       exit={{ opacity: 0, y: -10 }}
       className="card inline-insert-form"
       style={{ margin: '0.5rem 0' }}
+      onPaste={handleInlinePaste}
     >
       <h4 className="inline-insert-title">
         <Plus size={14} /> 여기에 단어 추가하기
@@ -782,14 +929,26 @@ const InlineInsertForm = memo(({ index, onInsert, onCancel, setZoomedImage }) =>
         />
       </div>
       <div className="inline-form-footer">
-        <label className="inline-image-upload-label">
-          <ImageIcon size={16} /> {image ? '이미지 교체' : '이미지 첨부'}
-          <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImageChange} />
-        </label>
+        <div className="image-action-group">
+          <span className="image-action-title">이미지 추가/변경</span>
+          <div className="image-action-buttons">
+            <label className="image-icon-btn" title="파일 첨부">
+              <ImageIcon size={14} />
+              <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImageChange} />
+            </label>
+            <span role="button" onClick={handleInlineClipboardPaste} className="image-icon-btn" title="클립보드에서 붙여넣기">
+              <Clipboard size={14} />
+            </span>
+          </div>
+        </div>
         {preview && (
-          <div onClick={() => setZoomedImage(preview)} className="inline-preview-container">
-            <img src={preview} className="preview-image" />
-            <button type="button" onClick={(e) => { e.stopPropagation(); setImage(null); setPreview(null); }} className="inline-preview-remove-btn"><X size={10} /></button>
+          <div className="inline-preview-container-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <div onClick={() => setZoomedImage(preview)} className="inline-preview-container" style={{ cursor: 'zoom-in', position: 'relative' }}>
+              <img src={preview} className="preview-image" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }} />
+            </div>
+            <button type="button" onClick={(e) => { e.stopPropagation(); setImage(null); setPreview(null); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.2rem', minWidth: 'auto' }} title="이미지 삭제">
+              <X size={18} />
+            </button>
           </div>
         )}
         <div className="inline-actions-group">
