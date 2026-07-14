@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, memo } from 'react'
+import React, { useState, useEffect, useCallback, memo, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { motion, Reorder, AnimatePresence } from 'framer-motion'
@@ -503,8 +503,8 @@ export default function SetDetail() {
                 setZoomedImage={setZoomedImage}
               />
 
-              {/* 카드 사이 구분자 — 호버 시 추가 버튼 노출 */}
-              {idx < cards.length - 1 && (
+              {/* 카드 사이 및 최하단 구분자 — 호버 시 추가 버튼 노출 */}
+              {insertingIndex !== idx + 1 && (
                 <div 
                   className="insert-separator"
                   onClick={() => {
@@ -519,18 +519,18 @@ export default function SetDetail() {
               )}
             </React.Fragment>
           ))}
+
+          {/* 마지막 카드 아래 인라인 추가 폼 */}
+          {cards.length > 0 && insertingIndex === cards.length && (
+            <InlineInsertForm
+              index={cards.length}
+              onInsert={handleInsertCard}
+              onCancel={() => setInsertingIndex(null)}
+              setZoomedImage={setZoomedImage}
+            />
+          )}
         </AnimatePresence>
       </div>
-
-      {/* 마지막 카드 아래 인라인 추가 폼 */}
-      {cards.length > 0 && insertingIndex === cards.length && (
-        <InlineInsertForm
-          index={cards.length}
-          onInsert={handleInsertCard}
-          onCancel={() => setInsertingIndex(null)}
-          setZoomedImage={setZoomedImage}
-        />
-      )}
 
     </div>
   )
@@ -843,6 +843,11 @@ const InlineInsertForm = memo(({ index, onInsert, onCancel, setZoomedImage }) =>
   const [image, setImage] = useState(null)
   const [preview, setPreview] = useState(null)
   const [localLoading, setLocalLoading] = useState(false)
+  const containerRef = useRef(null)
+
+  useEffect(() => {
+    containerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [])
 
   const handleImageChange = (e) => {
     const file = e.target.files[0]
@@ -904,6 +909,7 @@ const InlineInsertForm = memo(({ index, onInsert, onCancel, setZoomedImage }) =>
 
   return (
     <motion.div 
+      ref={containerRef}
       initial={{ opacity: 0, y: -10 }} 
       animate={{ opacity: 1, y: 0 }} 
       exit={{ opacity: 0, y: -10 }}
@@ -916,6 +922,7 @@ const InlineInsertForm = memo(({ index, onInsert, onCancel, setZoomedImage }) =>
       </h4>
       <div className="input-row">
         <textarea
+          autoFocus
           className="legible-input inline-textarea"
           placeholder="단어/개념 (예: Apple)"
           value={word}
